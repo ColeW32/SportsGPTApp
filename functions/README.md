@@ -1,50 +1,64 @@
-# SportsGPT Firebase Proxy
+# SportsGPT Firebase Functions
 
-This function keeps the MoneyLine API key off the client.
+Backend for the SportsGPT app: a hardened proxy that keeps the MoneyLine API key off
+the client, plus the RevenueCat webhook that records premium status for server-side
+free-limit enforcement.
 
-## What it does
+## Functions
 
-- Exposes one callable function: `moneylineProxy`
-- Accepts three operations from the iOS app:
-  - `aiChat`
-  - `bestBets`
-  - `eventBestBets`
-- Injects the MoneyLine API key server-side
-- Enforces Firebase App Check on every call
+### `moneylineProxy` (callable, us-central1)
 
-## Required setup
+The only client-facing entry point. Enforces **App Check** (`enforceAppCheck: true`)
+and **Firebase Auth** (anonymous sign-in from the app) — unauthenticated or
+unattested calls are rejected.
 
-1. Add your Apple app to Firebase and download `GoogleService-Info.plist`.
-2. Place `GoogleService-Info.plist` in the Xcode project locally.
-3. Enable App Check in Firebase for the app.
-4. Set the MoneyLine secret:
+Operations (passed as `{ operation, ...params }`):
+
+- `aiChat` — POST `https://mlapi.bet/v1/ai/chat` with `{ body }`. Counted against the
+  free limit: non-premium users get `FREE_REQUEST_LIMIT` (10) lifetime asks tracked in
+  Firestore `users/{uid}.freeRequestCount`; request #11 is rejected with
+  `resource-exhausted` and `details.code = "free-limit-reached"`.
+- `bestBets` — GET `/v1/best-bets?limit=&bookmaker=`. Not counted.
+- `eventBestBets` — GET `/v1/events/{eventId}/best-bets?bookmaker=`. Not counted.
+
+### `revenuecatWebhook` (HTTP, us-central1)
+
+Receives RevenueCat webhook events and writes `users/{uid}.isPremium` to Firestore.
+Requires `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`. The app calls
+`Purchases.logIn(<firebase uid>)`, so RevenueCat's `app_user_id` is the Firebase UID.
+Premium-granting events: INITIAL_PURCHASE, RENEWAL, UNCANCELLATION,
+NON_RENEWING_PURCHASE, PRODUCT_CHANGE. Premium-revoking: EXPIRATION. Everything else
+(including CANCELLATION, which keeps access until expiration) is ignored.
+
+## Secrets
 
 ```bash
 firebase functions:secrets:set MONEYLINE_API_KEY
+firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET   # e.g. openssl rand -hex 32
 ```
 
-5. Install dependencies and deploy:
+Configure the same webhook secret in the RevenueCat dashboard (Integrations →
+Webhooks) with the URL
+`https://us-central1-<project-id>.cloudfunctions.net/revenuecatWebhook` and the
+Authorization header value `Bearer <secret>`.
+
+## Develop & test
 
 ```bash
 cd functions
 npm install
+npm test          # node:test unit suites (proxy, limits, webhook)
+node -e "require('./index.js')"   # boot check: must load without throwing
+```
+
+## Deploy
+
+```bash
 firebase deploy --only functions
 ```
 
-## iOS config
+After deploying, verify:
 
-The app reads `SportsGPT/Configuration/AppServices.plist`.
-
-For production, keep:
-
-- `MoneyLineTransportMode = firebaseCallable`
-- `FirebaseFunctionsRegion = us-central1`
-- `FirebaseMoneyLineProxyFunctionName = moneylineProxy`
-
-For local development only, you can override values with scheme environment variables:
-
-- `SPORTSGPT_REVENUECAT_PUBLIC_SDK_KEY`
-- `SPORTSGPT_MONEYLINE_DIRECT_API_KEY`
-- `SPORTSGPT_MONEYLINE_TRANSPORT_MODE`
-- `SPORTSGPT_FIREBASE_FUNCTIONS_REGION`
-- `SPORTSGPT_FIREBASE_FUNCTION_NAME`
+1. Direct curl to the callable without App Check/auth fails (401/403-class error).
+2. `revenuecatWebhook` returns 401 for a wrong secret.
+3. The app's suggested prompts load and a chat round-trip succeeds.
