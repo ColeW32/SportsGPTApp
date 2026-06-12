@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "SportsGPT",
+    "slug": "sportsgpt",
+    "owner": "colewarner-org2",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "sportsgpt",
+    "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "ios": {
+      "bundleIdentifier": "com.sportsgpt.juiced",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "SportsGPT uses the microphone so you can ask questions by voice.",
+        "NSSpeechRecognitionUsageDescription": "SportsGPT converts your speech to text to fill in your question.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.devicecheck.appattest-environment": "production"
+      }
+    },
+    "android": {
+      "package": "com.sportsgpt.juiced",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1C1B17",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/app-check",
+      "./plugins/withRnfbNonModularHeaders",
+      "expo-speech-recognition",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "16.4",
+            "buildReactNativeFromSource": true
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b4ddbc49-f9f0-4b95-808e-3dbd6578f926"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b4ddbc49-f9f0-4b95-808e-3dbd6578f926"
+    }
+  }
+}

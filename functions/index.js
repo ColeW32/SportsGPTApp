@@ -1,29 +1,44 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { handleProxyInvocation } = require("./proxy.js");
+const { makeEnforceAiChatLimit } = require("./limits.js");
+const { processWebhookEvent } = require("./webhook.js");
 
 const moneyLineApiKey = defineSecret("MONEYLINE_API_KEY");
+const revenueCatWebhookSecret = defineSecret("REVENUECAT_WEBHOOK_SECRET");
 
-const MONEYLINE_BASE_URL = "https://mlapi.bet";
-const ALLOWED_OPERATIONS = new Set(["aiChat", "bestBets", "eventBestBets"]);
+initializeApp();
 
 exports.moneylineProxy = onCall(
   {
     region: "us-central1",
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     secrets: [moneyLineApiKey]
   },
   async (request) => {
-    return handleProxyInvocation(request.data);
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign-in is required.");
+    }
+
+    return handleProxyInvocation({
+      data: request.data,
+      uid: request.auth.uid,
+      apiKey: moneyLineApiKey.value(),
+      fetchImpl: fetch,
+      enforceLimit: makeEnforceAiChatLimit(getFirestore())
+    });
   }
 );
 
-exports.moneylineProxyHttp = onRequest(
+exports.revenuecatWebhook = onRequest(
   {
     region: "us-central1",
-    invoker: "public",
-    secrets: [moneyLineApiKey]
+    secrets: [revenueCatWebhookSecret]
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -31,123 +46,21 @@ exports.moneylineProxyHttp = onRequest(
       return;
     }
 
-    try {
-      const json = await handleProxyInvocation(req.body);
-      res.status(200).json(json);
-    } catch (error) {
-      if (error instanceof HttpsError) {
-        const statusCode = httpStatusCode(error.code);
-        res.status(statusCode).json({ error: { message: error.message } });
-        return;
-      }
+    const secret = revenueCatWebhookSecret.value();
+    const authHeader = req.get("Authorization") || "";
+    const expected = Buffer.from(`Bearer ${secret}`);
+    const actual = Buffer.from(authHeader);
+    if (!secret || expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+      res.status(401).json({ error: { message: "Unauthorized." } });
+      return;
+    }
 
-      const message = error instanceof Error ? error.message : "Unexpected MoneyLine proxy error.";
-      res.status(500).json({ error: { message } });
+    try {
+      const result = await processWebhookEvent(getFirestore(), req.body?.event);
+      res.status(200).json({ result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Webhook processing failed.";
+      res.status(400).json({ error: { message } });
     }
   }
 );
-
-function buildUpstreamRequest(operation, data) {
-  switch (operation) {
-    case "aiChat":
-      return {
-        method: "POST",
-        url: `${MONEYLINE_BASE_URL}/v1/ai/chat`,
-        body: JSON.stringify(data.body || {})
-      };
-    case "bestBets": {
-      const query = new URLSearchParams();
-      query.set("limit", String(data.limit || 8));
-      if (typeof data.bookmaker === "string" && data.bookmaker.length > 0) {
-        query.set("bookmaker", data.bookmaker);
-      }
-
-      return {
-        method: "GET",
-        url: `${MONEYLINE_BASE_URL}/v1/best-bets?${query.toString()}`,
-        body: undefined
-      };
-    }
-    case "eventBestBets": {
-      if (typeof data.eventId !== "string" || !data.eventId.length) {
-        throw new HttpsError("invalid-argument", "eventId is required.");
-      }
-
-      const query = new URLSearchParams();
-      if (typeof data.bookmaker === "string" && data.bookmaker.length > 0) {
-        query.set("bookmaker", data.bookmaker);
-      }
-
-      const querySuffix = query.toString() ? `?${query.toString()}` : "";
-      return {
-        method: "GET",
-        url: `${MONEYLINE_BASE_URL}/v1/events/${encodeURIComponent(data.eventId)}/best-bets${querySuffix}`,
-        body: undefined
-      };
-    }
-    default:
-      throw new HttpsError("invalid-argument", "Unsupported MoneyLine proxy operation.");
-  }
-}
-
-function safeParseJSON(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function httpStatusCode(code) {
-  switch (code) {
-    case "invalid-argument":
-      return 400;
-    case "unauthenticated":
-      return 401;
-    case "permission-denied":
-      return 403;
-    case "not-found":
-      return 404;
-    case "failed-precondition":
-      return 412;
-    default:
-      return 500;
-  }
-}
-
-async function handleProxyInvocation(data) {
-  const operation = data?.operation;
-
-  if (!ALLOWED_OPERATIONS.has(operation)) {
-    throw new HttpsError("invalid-argument", "Unsupported MoneyLine proxy operation.");
-  }
-
-  const apiKey = moneyLineApiKey.value();
-  if (!apiKey) {
-    throw new HttpsError("failed-precondition", "MONEYLINE_API_KEY is not configured.");
-  }
-
-  const upstreamRequest = buildUpstreamRequest(operation, data);
-  const response = await fetch(upstreamRequest.url, {
-    method: upstreamRequest.method,
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey
-    },
-    body: upstreamRequest.body
-  });
-
-  const text = await response.text();
-  const json = safeParseJSON(text);
-
-  if (!response.ok) {
-    const upstreamMessage = json?.error?.message || text || `MoneyLine returned ${response.status}.`;
-    throw new HttpsError("internal", upstreamMessage);
-  }
-
-  if (!json) {
-    throw new HttpsError("internal", "MoneyLine returned a non-JSON response.");
-  }
-
-  return json;
-}
