@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>RevenueCatPublicSDKKey</key>
+	<string>appl_BvJoKxnxXfCaydUglCnEpRkfWFu</string>
+	<key>RevenueCatEntitlementID</key>
+	<string>SportsGPT Pro</string>
+	<key>RevenueCatMonthlyProductID</key>
+	<string>SportsGPT_PRO_Monthly_999</string>
+	<key>RevenueCatAnnualProductID</key>
+	<string>SportsGPT_PRO</string>
+	<key>RevenueCatLifetimeProductID</key>
+	<string>SportsGPT_PRO_Lifetime</string>
+	<key>MoneyLineTransportMode</key>
+	<string>firebaseCallable</string>
+	<key>MoneyLineDirectAPIKey</key>
+	<string></string>
+	<key>FirebaseFunctionsRegion</key>
+	<string>us-central1</string>
+	<key>FirebaseMoneyLineProxyFunctionName</key>
+	<string>moneylineProxyHttp</string>
+</dict>
+</plist>

@@ -1,0 +1,9 @@
+node_modules/
+GoogleService-Info.plist
+SportsGPT/Configuration/AppServices.local.plist
+functions/.env*
+functions/lib/
+functions/node_modules/
+.firebase/
+.firebaserc
+.DS_Store
