@@ -18,9 +18,6 @@
         "NSMicrophoneUsageDescription": "SportsGPT uses the microphone so you can ask questions by voice.",
         "NSSpeechRecognitionUsageDescription": "SportsGPT converts your speech to text to fill in your question.",
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "entitlements": {
-        "com.apple.developer.devicecheck.appattest-environment": "production"
       }
     },
     "android": {
