@@ -18,6 +18,14 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleTeamId": "3WXTFLADTA",
+        "ascAppId": "6762095440",
+        "ascApiKeyPath": "/Users/colewarner/Desktop/Development/.secrets/AuthKey_27A6G7MZ96.p8",
+        "ascApiKeyId": "27A6G7MZ96",
+        "ascApiKeyIssuerId": "181bf60c-8204-4e9b-abda-958bfe3aae00"
+      }
+    }
   }
 }
