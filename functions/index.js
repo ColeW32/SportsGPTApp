@@ -17,7 +17,12 @@ initializeApp();
 exports.moneylineProxy = onCall(
   {
     region: "us-central1",
-    enforceAppCheck: true,
+    // App Check temporarily NOT enforced: App Attest tokens from real devices
+    // fail Firebase verification ("Decoding App Check token failed"), which broke
+    // the shipped TestFlight build. Auth + the per-UID rate limit still protect
+    // the proxy. Re-enable (set back to true) once App Attest verification is
+    // fixed — this is a server-only toggle, no app rebuild needed.
+    enforceAppCheck: false,
     secrets: [moneyLineApiKey]
   },
   async (request) => {
