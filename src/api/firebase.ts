@@ -20,7 +20,11 @@ async function doBootstrap(): Promise<string> {
   const provider = firebase.appCheck().newReactNativeFirebaseAppCheckProvider();
   provider.configure({
     apple: {
-      provider: __DEV__ ? "debug" : "appAttestWithDeviceCheckFallback",
+      // Plain App Attest (no DeviceCheck fallback): the app's iOS floor is 16.4,
+      // so App Attest is available on every supported device. The fallback path
+      // produced unverifiable tokens because no DeviceCheck key is uploaded to
+      // Firebase, which broke App Check on real devices.
+      provider: __DEV__ ? "debug" : "appAttest",
       debugToken: process.env.EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN,
     },
     android: {
