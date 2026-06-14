@@ -34,5 +34,14 @@ async function doBootstrap(): Promise<string> {
 
   const user = auth().currentUser ?? (await auth().signInAnonymously()).user;
   await Purchases.logIn(user.uid);
+
+  // Pre-warm the App Check token so the App Attest handshake completes before the
+  // first proxy call, avoiding a cold-install "unauthenticated" on the first ask.
+  try {
+    await firebase.appCheck().getToken(true);
+  } catch {
+    // best-effort; the client retries a transient App Check failure
+  }
+
   return user.uid;
 }

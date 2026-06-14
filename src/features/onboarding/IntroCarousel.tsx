@@ -88,12 +88,17 @@ export function IntroCarousel({ onDone }: { onDone: () => void }) {
       >
         {SLIDES.map((slide, index) => (
           <View key={slide.eyebrow} style={{ width: pageWidth }}>
-            <View style={styles.slideCard}>
-              <Text style={styles.eyebrow}>{slide.eyebrow.toUpperCase()}</Text>
-              <Text style={styles.slideTitle}>{slide.title}</Text>
-              <Text style={styles.slideDetail}>{slide.detail}</Text>
-              <SlideVisual index={index} />
-            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.slideScrollContent}
+            >
+              <View style={styles.slideCard}>
+                <Text style={styles.eyebrow}>{slide.eyebrow.toUpperCase()}</Text>
+                <Text style={styles.slideTitle}>{slide.title}</Text>
+                <Text style={styles.slideDetail}>{slide.detail}</Text>
+                <SlideVisual index={index} />
+              </View>
+            </ScrollView>
           </View>
         ))}
       </ScrollView>
@@ -217,8 +222,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexGrow: 1,
   },
+  slideScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 4,
+  },
   slideCard: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: palette.card,
     borderRadius: 32,
     borderWidth: 1,

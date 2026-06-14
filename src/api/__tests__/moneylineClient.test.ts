@@ -4,6 +4,8 @@ jest.mock("@react-native-firebase/functions", () => () => ({
   httpsCallable: () => mockCallable,
 }));
 
+jest.mock("../appCheck", () => ({ refreshAppCheckToken: jest.fn().mockResolvedValue(undefined) }));
+
 import {
   EmptyResponseError,
   FreeLimitReachedError,
@@ -47,14 +49,30 @@ describe("sendChat", () => {
     await expect(sendChat(payload)).rejects.toBeInstanceOf(FreeLimitReachedError);
   });
 
-  it("maps auth/app-check failures to the latest-build message", async () => {
+  it("retries a transient App Check failure once, then maps to the setup message", async () => {
     mockCallable.mockRejectedValue(Object.assign(new Error("denied"), { code: "functions/unauthenticated" }));
-    await expect(sendChat(payload)).rejects.toThrow(/latest build/);
+    await expect(sendChat(payload)).rejects.toThrow(/finishing setup/);
+    expect(mockCallable).toHaveBeenCalledTimes(2); // initial + one retry
   });
 
-  it("preserves upstream server error messages from internal errors", async () => {
+  it("recovers when the retry succeeds after the App Attest handshake settles", async () => {
+    mockCallable
+      .mockRejectedValueOnce(Object.assign(new Error("denied"), { code: "unauthenticated" }))
+      .mockResolvedValueOnce({ data: { success: true, data: { answer: "ok" } } });
+    const data = await sendChat(payload);
+    expect(data.answer).toBe("ok");
+    expect(mockCallable).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps a bare (unprefixed) unauthenticated code too", async () => {
+    mockCallable.mockRejectedValue(Object.assign(new Error("denied"), { code: "unauthenticated" }));
+    await expect(sendChat(payload)).rejects.toThrow(/finishing setup/);
+  });
+
+  it("does not retry non-transient errors and preserves their message", async () => {
     mockCallable.mockRejectedValue(Object.assign(new Error("matches multiple games"), { code: "functions/internal" }));
     await expect(sendChat(payload)).rejects.toThrow("matches multiple games");
+    expect(mockCallable).toHaveBeenCalledTimes(1);
   });
 });
 

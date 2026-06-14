@@ -1,4 +1,5 @@
 import functions from "@react-native-firebase/functions";
+import { refreshAppCheckToken } from "./appCheck";
 import { EmptyResponseError, FreeLimitReachedError, ServerError } from "./errors";
 import type {
   BestBetEvent,
@@ -12,44 +13,66 @@ import type {
 export { EmptyResponseError, FreeLimitReachedError, ServerError };
 
 const PROXY_UNREACHABLE_MESSAGE =
-  "SportsGPT couldn't reach the MoneyLine proxy. Please make sure you're on the latest build and try again.";
+  "SportsGPT is finishing setup on this device. Please try again in a moment.";
+
+// Callable failures that mean App Check / auth isn't ready yet — transient on a
+// cold install while App Attest establishes. Worth one retry after a token refresh.
+const TRANSIENT_CODES = new Set(["unauthenticated", "permission-denied", "failed-precondition"]);
 
 interface Envelope {
   success: boolean;
   error?: { message?: string } | null;
 }
 
+// RN Firebase returns bare codes ("unauthenticated"); the JS SDK prefixes them
+// ("functions/unauthenticated"). Normalize so mapping works on both.
+function normalizedCode(code?: string): string {
+  return (code ?? "").replace(/^functions\//, "");
+}
+
+function isFreeLimit(e: unknown): boolean {
+  const err = e as { code?: string; details?: { code?: string } };
+  return normalizedCode(err?.code) === "resource-exhausted" && err?.details?.code === "free-limit-reached";
+}
+
+function isTransient(e: unknown): boolean {
+  if (isFreeLimit(e)) return false;
+  return TRANSIENT_CODES.has(normalizedCode((e as { code?: string })?.code));
+}
+
+function mapCallableError(e: unknown): Error {
+  if (isFreeLimit(e)) return new FreeLimitReachedError();
+  if (isTransient(e)) return new ServerError(PROXY_UNREACHABLE_MESSAGE);
+  return new ServerError((e as { message?: string })?.message ?? "The MoneyLine AI response was invalid.");
+}
+
+async function invoke<T>(payload: Record<string, unknown>): Promise<T> {
+  const result = await functions().httpsCallable("moneylineProxy")(payload);
+  return result.data as T;
+}
+
 async function call<T extends Envelope>(payload: Record<string, unknown>): Promise<T> {
-  let result;
+  let envelope: T;
   try {
-    result = await functions().httpsCallable("moneylineProxy")(payload);
+    envelope = await invoke<T>(payload);
   } catch (e) {
-    throw mapCallableError(e);
+    if (isTransient(e)) {
+      // App Attest may still be establishing — refresh the token and retry once.
+      await refreshAppCheckToken();
+      try {
+        envelope = await invoke<T>(payload);
+      } catch (retryError) {
+        throw mapCallableError(retryError);
+      }
+    } else {
+      throw mapCallableError(e);
+    }
   }
 
-  const envelope = result.data as T;
   if (!envelope?.success) {
     throw new ServerError(envelope?.error?.message ?? "The MoneyLine request failed.");
   }
   return envelope;
-}
-
-function mapCallableError(e: unknown): Error {
-  const err = e as { code?: string; details?: { code?: string }; message?: string };
-
-  if (err?.code === "functions/resource-exhausted" && err?.details?.code === "free-limit-reached") {
-    return new FreeLimitReachedError();
-  }
-
-  if (
-    err?.code === "functions/unauthenticated" ||
-    err?.code === "functions/failed-precondition" ||
-    err?.code === "functions/permission-denied"
-  ) {
-    return new ServerError(PROXY_UNREACHABLE_MESSAGE);
-  }
-
-  return new ServerError(err?.message ?? "The MoneyLine AI response was invalid.");
 }
 
 export async function sendChat(payload: MoneyLineChatRequest): Promise<MoneyLineAIData> {
