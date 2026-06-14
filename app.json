@@ -13,10 +13,12 @@
     },
     "ios": {
       "bundleIdentifier": "com.sportsgpt.juiced",
+      "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "SportsGPT uses the microphone so you can ask questions by voice.",
         "NSSpeechRecognitionUsageDescription": "SportsGPT converts your speech to text to fill in your question.",
+        "NSPhotoLibraryUsageDescription": "SportsGPT only needs photo access if you choose to save or share a betting card image.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
