@@ -20,8 +20,10 @@ export function SuggestedPromptsRow({ prompts, onSelect }: Props) {
         <View style={styles.row}>
           {prompts.map((prompt) => (
             <Pressable key={prompt.id} style={styles.card} onPress={() => onSelect(prompt)}>
-              <Text style={styles.shortLabel}>{prompt.shortLabel}</Text>
-              <Text style={styles.promptText} numberOfLines={3}>
+              <Text style={styles.shortLabel} numberOfLines={2}>
+                {prompt.shortLabel}
+              </Text>
+              <Text style={styles.promptText} numberOfLines={2}>
                 {prompt.text}
               </Text>
             </Pressable>
@@ -68,7 +70,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: 196,
-    height: 92,
+    height: 104,
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -79,17 +81,19 @@ const styles = StyleSheet.create({
   },
   shortLabel: {
     fontSize: 13,
+    lineHeight: 17,
     fontWeight: "900",
     color: palette.ink,
   },
   promptText: {
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: "500",
     color: palette.mutedInk,
   },
   skeletonCard: {
     width: 196,
-    height: 84,
+    height: 104,
     gap: 8,
     paddingHorizontal: 14,
     justifyContent: "center",
