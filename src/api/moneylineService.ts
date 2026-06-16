@@ -33,6 +33,38 @@ export const BEST_BET_TODAY_PROMPT: SuggestedPrompt = {
   shortLabel: "Best Bet Today",
 };
 
+// Curated prompts that showcase what the assistant can surface: value metrics
+// (edge %, EV), player props, confidence-graded picks, and best odds across the
+// 40+ supported books. Shown ahead of the dynamic per-matchup prompts.
+const FEATURE_PROMPTS: SuggestedPrompt[] = [
+  BEST_BET_TODAY_PROMPT,
+  {
+    id: "biggest-edge",
+    text: "Where's the biggest edge right now?",
+    shortLabel: "Biggest Edge",
+  },
+  {
+    id: "best-value",
+    text: "Find the best value bets by expected value.",
+    shortLabel: "Best Value (EV)",
+  },
+  {
+    id: "player-props",
+    text: "What are the best player props tonight?",
+    shortLabel: "Player Props",
+  },
+  {
+    id: "high-confidence",
+    text: "Give me a high-confidence pick for tonight.",
+    shortLabel: "High Confidence",
+  },
+  {
+    id: "best-odds",
+    text: "Which book has the best odds across the board?",
+    shortLabel: "Best Odds",
+  },
+];
+
 function toWirePayload(
   context: string | undefined,
   selectedBookmakers: Sportsbook[],
@@ -136,7 +168,7 @@ export async function fetchSuggestedPromptSeed(selectedBookmakers: Sportsbook[])
     events.map(promptFromBestBet).filter((p): p is SuggestedPrompt => Boolean(p))
   ).slice(0, 4);
 
-  const prompts = dedupeByText([BEST_BET_TODAY_PROMPT, ...dynamicPrompts]);
+  const prompts = dedupeByText([...FEATURE_PROMPTS, ...dynamicPrompts]);
 
   return { prompts, events };
 }

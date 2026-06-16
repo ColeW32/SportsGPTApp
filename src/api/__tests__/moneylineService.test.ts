@@ -142,13 +142,16 @@ describe("sendMessages", () => {
 });
 
 describe("fetchSuggestedPromptSeed", () => {
-  it("seeds the static prompt plus deduped dynamic prompts from best bets", async () => {
+  it("seeds the curated feature prompts plus deduped dynamic prompts from best bets", async () => {
     mockFetchBestBets.mockResolvedValue([celticsEvent, celticsEvent]);
     const seed = await fetchSuggestedPromptSeed([]);
     expect(mockFetchBestBets).toHaveBeenCalledWith(8, undefined);
     expect(seed.prompts[0].text).toBe("What's the best bet today?");
-    expect(seed.prompts).toHaveLength(2);
-    expect(seed.prompts[1].text).toBe(
+    // Curated feature prompts lead, followed by the deduped dynamic matchup prompt.
+    expect(seed.prompts.map((p) => p.shortLabel)).toEqual(
+      expect.arrayContaining(["Best Bet Today", "Biggest Edge", "Best Value (EV)", "Player Props"])
+    );
+    expect(seed.prompts[seed.prompts.length - 1].text).toBe(
       "What are the best bets for the Boston Celtics vs New York Knicks basketball game?"
     );
     expect(seed.events).toHaveLength(2);
