@@ -144,6 +144,7 @@ export interface Recommendation {
   marketLabel?: string;
   oddsDisplay?: string;
   bookmakerName?: string;
+  bookmakerId?: string;
   sourceType?: string;
   confidence?: Confidence;
   rationale?: string;

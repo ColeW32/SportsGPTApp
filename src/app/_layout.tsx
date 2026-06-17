@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { bootstrapFirebase } from "../api/firebase";
+import { loadSportsbookLinks } from "../api/sportsbookLinks";
 import { useAppFlags } from "../state/appFlags";
 import { useChatStore } from "../state/chatStore";
 import { useSubscriptionStore } from "../state/subscriptionStore";
@@ -18,6 +19,7 @@ export default function RootLayout() {
     void subscription.loadOfferings();
 
     useChatStore.getState().loadWelcomeState();
+    void loadSportsbookLinks();
 
     // The proxy requires auth + App Check, so the prompt seed must wait for the
     // bootstrap; failures must not block the UI (chat calls surface their own errors).

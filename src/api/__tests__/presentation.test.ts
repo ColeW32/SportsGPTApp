@@ -81,6 +81,19 @@ describe("toAssistantPresentation", () => {
     expect(result.entityMatchup).toBe("Celtics vs Knicks");
   });
 
+  it("maps bookmakerId (lowercased) from the wire recommendation onto the primary pick", () => {
+    const presentation = toAssistantPresentation({
+      presentation: {
+        primaryPick: {
+          selection: "Lakers ML",
+          bookmakerId: "DraftKings",
+          bookmakerName: "DraftKings",
+        },
+      },
+    } as MoneyLineAIData);
+    expect(presentation?.primaryPick?.bookmakerId).toBe("draftkings");
+  });
+
   it("maps the primary pick with odds display, facts, and event context", () => {
     const pick = result.primaryPick!;
     expect(pick.selection).toBe("Boston Celtics");

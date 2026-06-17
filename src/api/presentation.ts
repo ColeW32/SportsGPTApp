@@ -165,6 +165,7 @@ function toRecommendation(
     marketLabel: preferredMarketLabel,
     oddsDisplay: displayOdds(info),
     bookmakerName: trimmedOrUndefined(info.bookmakerName),
+    bookmakerId: trimmedOrUndefined(info.bookmakerId)?.toLowerCase(),
     sourceType: info.sourceType ? trimmedOrUndefined(readableLabel(info.sourceType)) : undefined,
     confidence: confidenceFrom(info.confidence),
     rationale: trimmedOrUndefined(info.rationale ?? info.reason),

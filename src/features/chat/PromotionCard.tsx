@@ -1,31 +1,38 @@
-// Port of PromotionCardView (ContentView.swift:2888-2939) — the Rebet affiliate
-// promotion card shown under assistant replies.
+// Sportsbook promotion card shown under assistant replies. Links to the
+// recommended book's admin-managed link (from Juiced), falling back to Rebet.
 
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { getLinkForBook, type SportsbookLink } from "../../api/sportsbookLinks";
 import { palette } from "../../theme";
 
-const REBET_URL = "https://mlapi.bet/track/rebet?source=d63ef966-3e38-45f3-8e3e-aff7b9f0e65d";
+export function resolvePromotionLink(bookmakerId: string | undefined): SportsbookLink {
+  return getLinkForBook(bookmakerId);
+}
 
-export default function PromotionCard() {
+interface Props {
+  bookmakerId?: string;
+}
+
+export default function PromotionCard({ bookmakerId }: Props) {
+  const link = resolvePromotionLink(bookmakerId);
+
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Recommended Place To Bet</Text>
 
-      <Text style={styles.title}>Rebet</Text>
-
-      <Text style={styles.promotion}>Current promotion: 100% bonus on deposit up to $100.</Text>
+      <Text style={styles.title}>{link.brand}</Text>
 
       <Text style={styles.detail}>
-        {"With a promotion like this, even if you lose, you win. If you deposit $50, that extra bonus meaningfully cushions the downside and gives you more room to work with."}
+        {"Place this bet with a sportsbook we trust. Must be 21+ and use 1-800-GAMBLER."}
       </Text>
 
       <Pressable
         style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
-        onPress={() => void Linking.openURL(REBET_URL)}
+        onPress={() => void Linking.openURL(link.url)}
         accessibilityRole="link"
       >
-        <Text style={styles.linkButtonText}>Open Rebet</Text>
+        <Text style={styles.linkButtonText}>{`Open ${link.brand}`}</Text>
         <Text style={styles.linkButtonArrow}>↗</Text>
       </Pressable>
 
@@ -52,11 +59,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "900",
-    color: palette.ink,
-  },
-  promotion: {
-    fontSize: 14,
-    fontWeight: "700",
     color: palette.ink,
   },
   detail: {

@@ -35,7 +35,9 @@ export function ChatBubble({ message }: Props) {
           <MessageMarkdownText text={message.text} />
         )}
 
-        {showAd ? <PromotionCard /> : null}
+        {showAd ? (
+          <PromotionCard bookmakerId={message.assistantPresentation?.primaryPick?.bookmakerId} />
+        ) : null}
       </View>
     </View>
   );
