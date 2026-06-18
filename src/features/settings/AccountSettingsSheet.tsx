@@ -4,6 +4,7 @@
 // RN port contract; manage-subscription opens managementURL like
 // SubscriptionStore.openManageSubscriptions (SportsGPTModels.swift:681-687).
 
+import auth from "@react-native-firebase/auth";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -47,6 +48,11 @@ export default function AccountSettingsSheet() {
   const subscriptionErrorMessage = useSubscriptionStore((s) => s.subscriptionErrorMessage);
   const isPaywallPresented = useSubscriptionStore((s) => s.isPaywallPresented);
   const [isLegalVisible, setLegalVisible] = useState(false);
+
+  // Firebase UID doubles as the RevenueCat App User ID (api/firebase.ts:39,
+  // Purchases.logIn(user.uid)), so this single value is what support uses to
+  // look an account up in either dashboard.
+  const accountId = auth().currentUser?.uid ?? "Not signed in yet";
 
   // Mirrors SubscriptionStore.canManageAds (SportsGPTModels.swift:689-694).
   const canManageAds = state.kind === "activeSubscriber";
@@ -138,6 +144,17 @@ export default function AccountSettingsSheet() {
                 {isOperationInProgress ? "Working..." : "Restore Purchases"}
               </Text>
             </Pressable>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>YOUR ACCOUNT ID</Text>
+
+            <Text style={styles.accountIdValue} selectable>
+              {accountId}
+            </Text>
+            <Text style={styles.rowButtonDetail}>
+              {"Press and hold the ID to copy it, then share it with support if you ever need help with your account."}
+            </Text>
           </View>
 
           {canManageAds ? (
@@ -323,6 +340,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: palette.mutedInk,
+  },
+  accountIdValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
+    lineHeight: 20,
   },
   rowButton: {
     flexDirection: "row",
