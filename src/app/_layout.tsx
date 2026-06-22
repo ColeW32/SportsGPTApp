@@ -13,18 +13,22 @@ export default function RootLayout() {
   useEffect(() => {
     void useAppFlags.getState().hydrate();
 
-    const subscription = useSubscriptionStore.getState();
-    void subscription.hydrate();
-    void subscription.refresh();
-    void subscription.loadOfferings();
+    void useSubscriptionStore.getState().hydrate();
 
     void useChatStore.getState().hydrate();
     useChatStore.getState().loadWelcomeState();
     void loadSportsbookLinks();
 
-    // The proxy requires auth + App Check, so the prompt seed must wait for the
-    // bootstrap; failures must not block the UI (chat calls surface their own errors).
+    // RevenueCat reads must wait for bootstrap: it runs Purchases.configure +
+    // Purchases.logIn(firebaseUid), so refresh()/loadOfferings() before it would
+    // hit an unconfigured/anonymous customer and reset premium to free. The proxy
+    // also needs auth + App Check before the prompt seed. Failures must not block
+    // the UI (chat calls surface their own errors).
     bootstrapFirebase()
+      .then(() => {
+        const subscription = useSubscriptionStore.getState();
+        return Promise.all([subscription.refresh(), subscription.loadOfferings()]);
+      })
       .catch(() => undefined)
       .finally(() => {
         void useChatStore.getState().loadSuggestedPrompts();
