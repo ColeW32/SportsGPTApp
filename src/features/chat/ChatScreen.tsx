@@ -84,40 +84,44 @@ export default function ChatScreen() {
       ]}
     >
       <View style={styles.header}>
-        <Pressable style={styles.iconButton} onPress={() => setDrawerVisible(true)} hitSlop={6}>
-          <SymbolView name="sidebar.left" size={18} weight="semibold" tintColor={palette.headerText} />
-        </Pressable>
+        <View style={styles.headerLeft}>
+          <Pressable style={styles.iconButton} onPress={() => setDrawerVisible(true)} hitSlop={6}>
+            <SymbolView name="sidebar.left" size={16} weight="semibold" tintColor={palette.headerText} />
+          </Pressable>
 
-        <Pressable onPress={handleTitlePress}>
-          <Text style={styles.title}>SportsGPT</Text>
-        </Pressable>
+          <Pressable style={styles.titleButton} onPress={handleTitlePress}>
+            <Text style={styles.title} numberOfLines={1}>
+              SportsGPT
+            </Text>
+          </Pressable>
 
-        <Pressable
-          style={styles.iconButton}
-          onPress={() => useChatStore.getState().newConversation()}
-          hitSlop={6}
-        >
-          <SymbolView name="square.and.pencil" size={18} weight="semibold" tintColor={palette.headerText} />
-        </Pressable>
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => useChatStore.getState().newConversation()}
+            hitSlop={6}
+          >
+            <SymbolView name="square.and.pencil" size={16} weight="semibold" tintColor={palette.headerText} />
+          </Pressable>
+        </View>
 
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerRight}>
+          <Pressable style={styles.filterButton} onPress={() => setFilterSheetVisible(true)}>
+            <SymbolView
+              name="line.3.horizontal.decrease.circle"
+              size={15}
+              tintColor={palette.headerText}
+            />
+            <Text style={styles.filterText}>{sportsbookSummary(selectedSportsbookIds)}</Text>
+          </Pressable>
 
-        <Pressable style={styles.filterButton} onPress={() => setFilterSheetVisible(true)}>
-          <SymbolView
-            name="line.3.horizontal.decrease.circle"
-            size={15}
-            tintColor={palette.headerText}
-          />
-          <Text style={styles.filterText}>{sportsbookSummary(selectedSportsbookIds)}</Text>
-        </Pressable>
-
-        <Pressable style={styles.accountButton} onPress={() => setMenuVisible((v) => !v)}>
-          <SymbolView name="line.3.horizontal" size={16} weight="black" tintColor={palette.ink} />
-        </Pressable>
+          <Pressable style={styles.accountButton} onPress={() => setMenuVisible((v) => !v)}>
+            <SymbolView name="line.3.horizontal" size={15} weight="black" tintColor={palette.ink} />
+          </Pressable>
+        </View>
       </View>
 
       {isMenuVisible ? (
-        <View style={[styles.menuOverlay, { top: insets.top + 84 }]}>
+        <View style={[styles.menuOverlay, { top: insets.top + 74 }]}>
           <RightSideMenu
             onClose={() => setMenuVisible(false)}
             onOpenLegal={() => setLegalVisible(true)}
@@ -171,8 +175,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 24,
     backgroundColor: palette.headerBar,
     borderWidth: 1,
@@ -182,20 +186,32 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
+  headerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerRight: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  titleButton: {
+    flexShrink: 1,
+  },
   title: {
     fontFamily: displayFontFamily,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "500",
     letterSpacing: 0.2,
     color: palette.headerText,
   },
-  headerSpacer: {
-    flex: 1,
-  },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255, 255, 255, 0.06)",
@@ -203,9 +219,9 @@ const styles = StyleSheet.create({
   filterButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
     borderRadius: 999,
     backgroundColor: "rgba(255, 255, 255, 0.06)",
   },
@@ -215,16 +231,16 @@ const styles = StyleSheet.create({
     color: palette.headerText,
   },
   accountButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: palette.card,
   },
   menuOverlay: {
     position: "absolute",
-    right: 18,
+    right: 14,
     zIndex: 2,
   },
   body: {
