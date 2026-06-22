@@ -318,6 +318,28 @@ describe("conversation history", () => {
     ]);
   });
 
+  it("hydrate merges stored threads with one created during the boot window", async () => {
+    // A thread persisted from a previous session.
+    await AsyncStorage.setItem(
+      "conversations",
+      JSON.stringify([
+        { id: "stored", title: "stored thread", messages: [], createdAt: 1, updatedAt: 1 },
+      ])
+    );
+    // Simulate a thread created on boot before the async hydrate read lands.
+    useChatStore.setState({
+      conversations: [
+        { id: "fresh", title: "fresh thread", messages: [], createdAt: 2, updatedAt: 2 },
+      ],
+    });
+
+    await useChatStore.getState().hydrate();
+
+    const ids = useChatStore.getState().conversations.map((c) => c.id);
+    expect(ids).toContain("stored"); // prior thread not clobbered
+    expect(ids).toContain("fresh"); // boot-window thread preserved
+  });
+
   it("hydrate loads the most recent 5 from storage", async () => {
     const make = (n: number): Conversation => ({
       id: `c${n}`,

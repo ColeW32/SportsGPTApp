@@ -323,11 +323,24 @@ export const useChatStore = create<ChatStore>((set, get) => {
       if (!Array.isArray(parsed)) {
         return;
       }
-      const conversations = recentConversations(parsed as Conversation[]).slice(
-        0,
-        MAX_CONVERSATIONS
-      );
+      // Merge stored threads with any created while this async read was in
+      // flight — a thread created on boot before hydrate lands must not be
+      // clobbered. In-memory entries (newer) win on id collision.
+      const inMemory = get().conversations;
+      const byId = new Map<string, Conversation>();
+      for (const c of parsed as Conversation[]) {
+        byId.set(c.id, c);
+      }
+      for (const c of inMemory) {
+        byId.set(c.id, c);
+      }
+      const conversations = recentConversations([...byId.values()]).slice(0, MAX_CONVERSATIONS);
       set({ conversations });
+      if (inMemory.length > 0) {
+        // A thread was created during the window — heal storage in case its
+        // write had clobbered the previously-stored list.
+        persistConversations(conversations);
+      }
     } catch {
       // Corrupt or absent store: start with no history.
     }
