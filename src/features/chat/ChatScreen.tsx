@@ -94,14 +94,6 @@ export default function ChatScreen() {
               SportsGPT
             </Text>
           </Pressable>
-
-          <Pressable
-            style={styles.iconButton}
-            onPress={() => useChatStore.getState().newConversation()}
-            hitSlop={6}
-          >
-            <SymbolView name="square.and.pencil" size={16} weight="semibold" tintColor={palette.headerText} />
-          </Pressable>
         </View>
 
         <View style={styles.headerRight}>
