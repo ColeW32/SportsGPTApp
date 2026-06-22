@@ -158,6 +158,25 @@ describe("toAssistantPresentation", () => {
     expect(pick.selection).toBe("Boston Celtics +3.5");
   });
 
+  it("strips a redundant handicap the backend appends to an over/under totals selection", () => {
+    // Real upstream shape: totals pick whose `selection` doubles the line as a
+    // spread-style handicap ("Over 8.5 +8.5"); `outcome` is clean.
+    const data: MoneyLineAIData = {
+      presentation: {
+        primaryPick: {
+          selection: "Over 8.5 +8.5",
+          outcome: "Over 8.5",
+          point: 8.5,
+          market: "total",
+          marketLabel: "Total Runs",
+          odds: 100,
+        },
+      },
+    };
+    const pick = toAssistantPresentation(data)!.primaryPick!;
+    expect(pick.selection).toBe("Over 8.5");
+  });
+
   it("drops context-requiring cards that have no standalone subject and no event context", () => {
     const data: MoneyLineAIData = {
       presentation: {

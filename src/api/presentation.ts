@@ -175,7 +175,9 @@ function toRecommendation(
   presentationEvent: ResolvedEvent | undefined,
   requiresReadableContext: boolean
 ): Recommendation | undefined {
-  const primarySelection = trimmedOrUndefined(info.selection) ?? normalizedSelectionFromOutcome(info);
+  const primarySelection = sanitizeOverUnderSelection(
+    trimmedOrUndefined(info.selection) ?? normalizedSelectionFromOutcome(info)
+  );
   if (!primarySelection) {
     return undefined;
   }
@@ -250,6 +252,20 @@ function pointDisplay(point: unknown): string | undefined {
     return trimmedOrUndefined(point);
   }
   return undefined;
+}
+
+// The upstream sometimes appends a spread-style handicap to a totals selection
+// that already carries its line, e.g. "Over 8.5 +8.5" (the `outcome` field stays
+// clean as "Over 8.5"). A totals bet has no handicap, so drop a trailing signed
+// number that follows an Over/Under line. Spreads (e.g. "+3.5", "Boston -1.5")
+// don't start with Over/Under, so they're untouched.
+function sanitizeOverUnderSelection(selection: string | undefined): string | undefined {
+  if (!selection) {
+    return selection;
+  }
+  return selection
+    .replace(/^((?:over|under)\s+\d+(?:\.\d+)?)\s+[+-]\d+(?:\.\d+)?$/i, "$1")
+    .trim();
 }
 
 function normalizedSelectionFromOutcome(info: RecommendationInfo): string | undefined {

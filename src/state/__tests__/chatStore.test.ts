@@ -283,6 +283,41 @@ describe("conversation history", () => {
     expect(new Set(ids).size).toBe(ids.length); // no duplicate ids in the live thread
   });
 
+  it("new chat + suggested prompt stays separate from the prior chat", async () => {
+    // Build an "old" chat, then start a new one and tap a suggested prompt.
+    mockSendMessages.mockResolvedValueOnce({ answer: "old reply", presentation: { summary: "old reply" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("old chat question");
+    await useChatStore.getState().sendMessage();
+    const oldId = useChatStore.getState().activeConversationId!;
+
+    mockSendMessages.mockResolvedValueOnce({ answer: "value bet", presentation: { summary: "value bet" } });
+    useChatStore.getState().newConversation();
+    await useChatStore.getState().sendSuggestedPrompt({
+      id: "p-value",
+      text: "What's the best value bet?",
+      shortLabel: "Best value",
+    });
+
+    const newId = useChatStore.getState().activeConversationId!;
+    const convs = useChatStore.getState().conversations;
+    const oldConv = convs.find((c) => c.id === oldId)!;
+    const newConv = convs.find((c) => c.id === newId)!;
+
+    expect(newId).not.toBe(oldId);
+    expect(convs).toHaveLength(2);
+    expect(oldConv.messages.map((m) => m.text)).toEqual([
+      WELCOME_TEXT,
+      "old chat question",
+      "old reply",
+    ]);
+    expect(newConv.messages.map((m) => m.text)).toEqual([
+      WELCOME_TEXT,
+      "What's the best value bet?",
+      "value bet",
+    ]);
+  });
+
   it("hydrate loads the most recent 5 from storage", async () => {
     const make = (n: number): Conversation => ({
       id: `c${n}`,
