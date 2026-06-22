@@ -29,6 +29,7 @@ import AdPreferencesSheet from "../settings/AdPreferencesSheet";
 import LegalSheet from "../settings/LegalSheet";
 import SportsbookFilterSheet from "../settings/SportsbookFilterSheet";
 import { Composer } from "./Composer";
+import ConversationDrawer from "./ConversationDrawer";
 import { MessageList } from "./MessageList";
 import RightSideMenu from "./RightSideMenu";
 
@@ -55,6 +56,7 @@ export default function ChatScreen() {
   const [isFilterSheetVisible, setFilterSheetVisible] = useState(false);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isLegalVisible, setLegalVisible] = useState(false);
+  const [isDrawerVisible, setDrawerVisible] = useState(false);
 
   const selectedSportsbookIds = useChatStore((s) => s.selectedSportsbookIds);
   const errorMessage = useChatStore((s) => s.errorMessage);
@@ -82,8 +84,20 @@ export default function ChatScreen() {
       ]}
     >
       <View style={styles.header}>
+        <Pressable style={styles.iconButton} onPress={() => setDrawerVisible(true)} hitSlop={6}>
+          <SymbolView name="sidebar.left" size={18} weight="semibold" tintColor={palette.headerText} />
+        </Pressable>
+
         <Pressable onPress={handleTitlePress}>
           <Text style={styles.title}>SportsGPT</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => useChatStore.getState().newConversation()}
+          hitSlop={6}
+        >
+          <SymbolView name="square.and.pencil" size={18} weight="semibold" tintColor={palette.headerText} />
         </Pressable>
 
         <View style={styles.headerSpacer} />
@@ -141,6 +155,7 @@ export default function ChatScreen() {
         onClose={() => setFilterSheetVisible(false)}
       />
       <LegalSheet visible={isLegalVisible} onClose={() => setLegalVisible(false)} />
+      <ConversationDrawer visible={isDrawerVisible} onClose={() => setDrawerVisible(false)} />
     </View>
   );
 }
@@ -176,6 +191,14 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     flex: 1,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
   },
   filterButton: {
     flexDirection: "row",

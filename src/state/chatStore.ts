@@ -2,6 +2,7 @@
 // spec: the free-message limit is now enforced server-side, so sendMessage can return
 // "limit" when the proxy rejects with free-limit-reached — the UI maps that to the paywall.
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { FreeLimitReachedError } from "../api/errors";
 import { fetchSuggestedPromptSeed, sendMessages } from "../api/moneylineService";
@@ -13,10 +14,44 @@ export type SendResult = "sent" | "limit" | "error" | "noop";
 
 export const WELCOME_TEXT = "Ask me anything betting related!";
 
+export const MAX_CONVERSATIONS = 5;
+const CONVERSATIONS_STORAGE_KEY = "conversations";
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 let nextMessageId = 0;
 function messageId(): string {
   nextMessageId += 1;
-  return `msg-${nextMessageId}`;
+  // Date.now() keeps ids unique across restarts; a bare counter would collide
+  // with `msg-N` ids restored from a persisted conversation on the next launch.
+  return `msg-${Date.now()}-${nextMessageId}`;
+}
+
+let conversationSeq = 0;
+function newConversationId(): string {
+  conversationSeq += 1;
+  // Date.now() keeps ids unique across restarts; a bare counter would collide
+  // with ids already persisted from a previous session.
+  return `conv-${Date.now()}-${conversationSeq}`;
+}
+
+export function conversationTitle(text: string): string {
+  const clean = text.trim().replace(/\s+/g, " ");
+  return clean.length > 40 ? `${clean.slice(0, 40)}…` : clean;
+}
+
+export function recentConversations(conversations: Conversation[]): Conversation[] {
+  return [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function persistConversations(conversations: Conversation[]): void {
+  void AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations));
 }
 
 // Guards against out-of-order prompt-seed responses when the sportsbook
@@ -32,6 +67,8 @@ interface ChatStore {
   selectedSportsbookIds: string[];
   suggestedPrompts: SuggestedPrompt[];
   suggestedBestBetEvents: BestBetEvent[];
+  conversations: Conversation[];
+  activeConversationId: string | null;
 
   setInput: (input: string) => void;
   loadWelcomeState: () => void;
@@ -40,6 +77,10 @@ interface ChatStore {
   sendMessage: () => Promise<SendResult>;
   sendSuggestedPrompt: (prompt: SuggestedPrompt) => Promise<SendResult>;
   dismissError: () => void;
+  hydrate: () => Promise<void>;
+  newConversation: () => void;
+  selectConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
 }
 
 export function selectedSportsbooks(ids: string[]): Sportsbook[] {
@@ -72,7 +113,37 @@ export function shouldShowSuggestedPromptLoading(
   return store.messages.length <= 1 && store.isLoadingSuggestedPrompts && store.suggestedPrompts.length === 0;
 }
 
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>((set, get) => {
+  // Mirror the live `messages` buffer into the active conversation, bump its
+  // timestamp, and persist. No-op while the active thread is an unsaved draft.
+  const syncActiveConversation = () => {
+    const { activeConversationId, messages, conversations } = get();
+    if (!activeConversationId) {
+      return;
+    }
+    const next = conversations.map((c) =>
+      c.id === activeConversationId
+        ? { ...c, messages: [...messages], updatedAt: Date.now() }
+        : c
+    );
+    set({ conversations: next });
+    persistConversations(next);
+  };
+
+  // Append a message straight to a stored conversation by id, without touching
+  // the live buffer. Used when a response resolves after the user has switched
+  // threads, so the reply lands in the thread it was sent from.
+  const appendToConversation = (id: string, message: ChatMessage) => {
+    const next = get().conversations.map((c) =>
+      c.id === id
+        ? { ...c, messages: [...c.messages, message], updatedAt: Date.now() }
+        : c
+    );
+    set({ conversations: next });
+    persistConversations(next);
+  };
+
+  return {
   messages: [],
   input: "",
   isLoading: false,
@@ -81,6 +152,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   selectedSportsbookIds: [],
   suggestedPrompts: [],
   suggestedBestBetEvents: [],
+  conversations: [],
+  activeConversationId: null,
 
   setInput: (input) => set({ input }),
 
@@ -89,6 +162,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       messages: [
         { id: messageId(), role: "assistant", text: WELCOME_TEXT, includeInAPIRequest: false },
       ],
+      activeConversationId: null,
     }),
 
   loadSuggestedPrompts: async () => {
@@ -129,12 +203,40 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       includeInAPIRequest: true,
     };
 
+    const wasDraft = get().activeConversationId === null;
+
     set({
       errorMessage: undefined,
       input: "",
       messages: [...get().messages, userMessage],
       isLoading: true,
     });
+
+    // The first user message turns a draft into a saved, titled thread; later
+    // messages just mirror into the existing conversation.
+    if (wasDraft) {
+      const now = Date.now();
+      const conversation: Conversation = {
+        id: newConversationId(),
+        title: conversationTitle(trimmedInput),
+        messages: [...get().messages],
+        createdAt: now,
+        updatedAt: now,
+      };
+      const conversations = recentConversations([conversation, ...get().conversations]).slice(
+        0,
+        MAX_CONVERSATIONS
+      );
+      set({ activeConversationId: conversation.id, conversations });
+      persistConversations(conversations);
+    } else {
+      syncActiveConversation();
+    }
+
+    // The thread this request belongs to. If the user switches threads while the
+    // reply is in flight, results land here rather than on whatever is active now.
+    const sentConversationId = get().activeConversationId as string;
+    const stillActive = () => get().activeConversationId === sentConversationId;
 
     // Echo the most recent surfaced pick's betRef so a follow-up like "other
     // books for this same bet?" can line-shop that exact selection.
@@ -157,24 +259,49 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         includeInAPIRequest: true,
         assistantPresentation: toAssistantPresentation(response),
       };
-      set({ messages: [...get().messages, assistantMessage], isLoading: false });
+      if (stillActive()) {
+        set({ messages: [...get().messages, assistantMessage], isLoading: false });
+        syncActiveConversation();
+      } else {
+        // User moved to another thread mid-flight — deliver to the origin thread.
+        set({ isLoading: false });
+        appendToConversation(sentConversationId, assistantMessage);
+      }
       return "sent";
     } catch (error) {
       if (error instanceof FreeLimitReachedError) {
-        // Roll the optimistic user message back and restore the input so the
-        // question survives the paywall round-trip.
-        set({
-          messages: get().messages.filter((m) => m.id !== userMessage.id),
-          input: trimmedInput,
-          isLoading: false,
-        });
+        if (stillActive()) {
+          // Roll the optimistic user message back and restore the input so the
+          // question survives the paywall round-trip.
+          set({
+            messages: get().messages.filter((m) => m.id !== userMessage.id),
+            input: trimmedInput,
+            isLoading: false,
+          });
+          if (wasDraft) {
+            // The thread was created only for this rejected ask — discard it.
+            const activeId = get().activeConversationId;
+            const conversations = get().conversations.filter((c) => c.id !== activeId);
+            set({ conversations, activeConversationId: null });
+            persistConversations(conversations);
+          } else {
+            syncActiveConversation();
+          }
+        } else {
+          set({ isLoading: false });
+        }
         return "limit";
       }
 
-      set({
-        isLoading: false,
-        errorMessage: error instanceof Error ? error.message : "Something went wrong.",
-      });
+      if (stillActive()) {
+        set({
+          isLoading: false,
+          errorMessage: error instanceof Error ? error.message : "Something went wrong.",
+        });
+        syncActiveConversation();
+      } else {
+        set({ isLoading: false });
+      }
       return "error";
     }
   },
@@ -185,4 +312,52 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   dismissError: () => set({ errorMessage: undefined }),
-}));
+
+  hydrate: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return;
+      }
+      const conversations = recentConversations(parsed as Conversation[]).slice(
+        0,
+        MAX_CONVERSATIONS
+      );
+      set({ conversations });
+    } catch {
+      // Corrupt or absent store: start with no history.
+    }
+  },
+
+  newConversation: () => {
+    get().loadWelcomeState();
+    set({ input: "", errorMessage: undefined });
+  },
+
+  selectConversation: (id) => {
+    const conv = get().conversations.find((c) => c.id === id);
+    if (!conv) {
+      return;
+    }
+    set({
+      messages: [...conv.messages],
+      activeConversationId: id,
+      input: "",
+      errorMessage: undefined,
+    });
+  },
+
+  deleteConversation: (id) => {
+    const next = get().conversations.filter((c) => c.id !== id);
+    set({ conversations: next });
+    persistConversations(next);
+    if (get().activeConversationId === id) {
+      get().newConversation();
+    }
+  },
+  };
+});

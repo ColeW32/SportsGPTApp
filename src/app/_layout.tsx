@@ -18,6 +18,7 @@ export default function RootLayout() {
     void subscription.refresh();
     void subscription.loadOfferings();
 
+    void useChatStore.getState().hydrate();
     useChatStore.getState().loadWelcomeState();
     void loadSportsbookLinks();
 

@@ -1,8 +1,13 @@
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock")
+);
+
 jest.mock("../../api/moneylineService", () => ({
   sendMessages: jest.fn(),
   fetchSuggestedPromptSeed: jest.fn(),
 }));
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FreeLimitReachedError, ServerError } from "../../api/errors";
 import { fetchSuggestedPromptSeed, sendMessages } from "../../api/moneylineService";
 import {
@@ -12,13 +17,15 @@ import {
   shouldShowSuggestedPrompts,
   sportsbookSummary,
   useChatStore,
+  type Conversation,
 } from "../chatStore";
 
 const mockSendMessages = sendMessages as jest.Mock;
 const mockFetchSeed = fetchSuggestedPromptSeed as jest.Mock;
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  await AsyncStorage.clear();
   useChatStore.setState({
     messages: [],
     input: "",
@@ -28,6 +35,8 @@ beforeEach(() => {
     selectedSportsbookIds: [],
     suggestedPrompts: [],
     suggestedBestBetEvents: [],
+    conversations: [],
+    activeConversationId: null,
   });
 });
 
@@ -138,6 +147,159 @@ describe("suggested prompts", () => {
     const result = await useChatStore.getState().sendSuggestedPrompt({ id: "p", text: "best bet?", shortLabel: "b" });
     expect(result).toBe("sent");
     expect(mockSendMessages.mock.calls[0][0][0].text).toBe("best bet?");
+  });
+});
+
+describe("conversation history", () => {
+  it("saves and titles a thread on the first user message", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "ok", presentation: { summary: "ok" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("Who wins Lakers vs Celtics tonight?");
+    await useChatStore.getState().sendMessage();
+
+    const { conversations, activeConversationId } = useChatStore.getState();
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0].title).toBe("Who wins Lakers vs Celtics tonight?");
+    expect(activeConversationId).toBe(conversations[0].id);
+    expect(conversations[0].messages.some((m) => m.role === "assistant" && m.text === "ok")).toBe(true);
+  });
+
+  it("starts a separate thread on newConversation", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "a", presentation: { summary: "a" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("first bet");
+    await useChatStore.getState().sendMessage();
+    useChatStore.getState().newConversation();
+    useChatStore.getState().setInput("second bet");
+    await useChatStore.getState().sendMessage();
+
+    expect(useChatStore.getState().conversations).toHaveLength(2);
+    expect(useChatStore.getState().messages.find((m) => m.role === "user")?.text).toBe("second bet");
+  });
+
+  it("caps history at 5, evicting the oldest", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "ok", presentation: { summary: "ok" } });
+    for (let i = 0; i < 6; i++) {
+      useChatStore.getState().newConversation();
+      useChatStore.getState().setInput(`bet ${i}`);
+      await useChatStore.getState().sendMessage();
+    }
+    const titles = useChatStore.getState().conversations.map((c) => c.title);
+    expect(useChatStore.getState().conversations).toHaveLength(5);
+    expect(titles).not.toContain("bet 0");
+    expect(titles).toContain("bet 5");
+  });
+
+  it("selectConversation swaps the active messages", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "ok", presentation: { summary: "ok" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("alpha");
+    await useChatStore.getState().sendMessage();
+    const first = useChatStore.getState().activeConversationId!;
+    useChatStore.getState().newConversation();
+    useChatStore.getState().setInput("beta");
+    await useChatStore.getState().sendMessage();
+
+    useChatStore.getState().selectConversation(first);
+    expect(useChatStore.getState().activeConversationId).toBe(first);
+    expect(useChatStore.getState().messages.find((m) => m.role === "user")?.text).toBe("alpha");
+  });
+
+  it("deleteConversation removes it and resets when active", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "ok", presentation: { summary: "ok" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("to delete");
+    await useChatStore.getState().sendMessage();
+    const id = useChatStore.getState().activeConversationId!;
+
+    useChatStore.getState().deleteConversation(id);
+    expect(useChatStore.getState().conversations).toHaveLength(0);
+    expect(useChatStore.getState().activeConversationId).toBeNull();
+  });
+
+  it("discards a draft thread when the first ask hits the free limit", async () => {
+    mockSendMessages.mockRejectedValue(new FreeLimitReachedError());
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("limit ask");
+    const result = await useChatStore.getState().sendMessage();
+    expect(result).toBe("limit");
+    expect(useChatStore.getState().conversations).toHaveLength(0);
+    expect(useChatStore.getState().activeConversationId).toBeNull();
+  });
+
+  it("delivers a reply to its origin thread when the user switches mid-flight", async () => {
+    // Seed thread A and let it settle.
+    mockSendMessages.mockResolvedValueOnce({ answer: "a-reply", presentation: { summary: "a-reply" } });
+    useChatStore.getState().loadWelcomeState();
+    useChatStore.getState().setInput("thread A question");
+    await useChatStore.getState().sendMessage();
+    const threadA = useChatStore.getState().activeConversationId!;
+
+    // Start thread B, fire a request, but switch back to A before it resolves.
+    let resolveB: (v: unknown) => void = () => {};
+    mockSendMessages.mockReturnValueOnce(new Promise((r) => (resolveB = r)));
+    useChatStore.getState().newConversation();
+    useChatStore.getState().setInput("thread B question");
+    const bSend = useChatStore.getState().sendMessage();
+    const threadB = useChatStore.getState().activeConversationId!;
+
+    useChatStore.getState().selectConversation(threadA);
+    resolveB({ answer: "b-reply", presentation: { summary: "b-reply" } });
+    await bSend;
+
+    const convB = useChatStore.getState().conversations.find((c) => c.id === threadB)!;
+    const convA = useChatStore.getState().conversations.find((c) => c.id === threadA)!;
+    expect(convB.messages.some((m) => m.text === "b-reply")).toBe(true);
+    expect(convA.messages.some((m) => m.text === "b-reply")).toBe(false);
+    // The live buffer still shows thread A, untouched by B's late reply.
+    expect(useChatStore.getState().activeConversationId).toBe(threadA);
+    expect(useChatStore.getState().messages.some((m) => m.text === "b-reply")).toBe(false);
+  });
+
+  it("generates message ids that do not collide with restored thread ids", async () => {
+    mockSendMessages.mockResolvedValue({ answer: "reply", presentation: { summary: "reply" } });
+    // Simulate a thread persisted in a previous session (old counter-style ids).
+    await AsyncStorage.setItem(
+      "conversations",
+      JSON.stringify([
+        {
+          id: "c1",
+          title: "old thread",
+          messages: [
+            { id: "msg-1", role: "user", text: "old q", includeInAPIRequest: true },
+            { id: "msg-2", role: "assistant", text: "old a", includeInAPIRequest: true },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ])
+    );
+    await useChatStore.getState().hydrate();
+    useChatStore.getState().selectConversation("c1");
+    useChatStore.getState().setInput("new question");
+    await useChatStore.getState().sendMessage();
+
+    const ids = useChatStore.getState().messages.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length); // no duplicate ids in the live thread
+  });
+
+  it("hydrate loads the most recent 5 from storage", async () => {
+    const make = (n: number): Conversation => ({
+      id: `c${n}`,
+      title: `t${n}`,
+      messages: [],
+      createdAt: n,
+      updatedAt: n,
+    });
+    await AsyncStorage.setItem(
+      "conversations",
+      JSON.stringify([make(1), make(2), make(3), make(4), make(5), make(6)])
+    );
+    await useChatStore.getState().hydrate();
+    const convs = useChatStore.getState().conversations;
+    expect(convs).toHaveLength(5);
+    expect(convs[0].id).toBe("c6"); // newest first
+    expect(convs.map((c) => c.id)).not.toContain("c1");
   });
 });
 
