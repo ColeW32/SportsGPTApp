@@ -5,12 +5,24 @@ export interface MoneyLineChatMessage {
   content: string;
 }
 
+// Structured reference to a surfaced bet, echoed back to line-shop it across books.
+export interface BetRef {
+  eventId: string;
+  market: string;
+  outcome?: string;
+  point?: number;
+  side?: string;
+  playerId?: string;
+  playerName?: string;
+}
+
 export interface MoneyLineChatRequest {
   context?: string;
   scope: string;
   responseFormat: string;
   filters?: { bookmakers: string[] };
   messages: MoneyLineChatMessage[];
+  referencedBet?: BetRef;
 }
 
 export interface APIError {
@@ -83,6 +95,7 @@ export interface RecommendationInfo {
   reason?: string | null;
   metrics?: MetricsInfo | null;
   event?: EventInfo | null;
+  betRef?: BetRef | null;
 }
 
 export interface PresentationInfo {
@@ -148,6 +161,7 @@ export interface Recommendation {
   sourceType?: string;
   confidence?: Confidence;
   rationale?: string;
+  betRef?: BetRef;
   facts: Fact[];
   metricSnapshot?: MetricSnapshot;
 }
@@ -162,6 +176,9 @@ export interface AssistantPresentation {
   alternativePick?: Recommendation;
   cards: Recommendation[];
   expandedExplanation?: string;
+  // Line shopping: cards are the same bet priced at different books — render
+  // them as a per-book comparison list rather than the generic supporting data.
+  lineComparison?: boolean;
 }
 
 export interface ChatMessage {

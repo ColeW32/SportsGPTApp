@@ -21,7 +21,10 @@ export function AssistantPresentationView({ presentation }: Props) {
   const [selectedMetric, setSelectedMetric] = useState<MetricExplainerState | null>(null);
 
   const sourceLabel = presentation.sourceLabel ?? presentation.entityMatchup;
-  const showSupportingData = presentation.cards.length > 0 || presentation.expandedExplanation != null;
+  const lineComparisonBooks = presentation.lineComparison ? presentation.cards : [];
+  const showSupportingData =
+    !presentation.lineComparison &&
+    (presentation.cards.length > 0 || presentation.expandedExplanation != null);
 
   return (
     <View style={styles.stack}>
@@ -51,6 +54,21 @@ export function AssistantPresentationView({ presentation }: Props) {
           isPrimary={false}
           onMetricTap={setSelectedMetric}
         />
+      ) : null}
+
+      {lineComparisonBooks.length > 0 ? (
+        <View style={styles.bookList}>
+          <Text style={styles.supportingHeader}>OTHER BOOKS</Text>
+          {lineComparisonBooks.map((book, index) => (
+            <View key={`${book.bookmakerName ?? "book"}-${index}`} style={styles.bookRow}>
+              <Text style={styles.bookName} numberOfLines={1}>
+                {book.bookmakerName}
+                {book.sourceType ? ` · ${book.sourceType}` : ""}
+              </Text>
+              {book.oddsDisplay ? <Text style={styles.bookOdds}>{book.oddsDisplay}</Text> : null}
+            </View>
+          ))}
+        </View>
       ) : null}
 
       {showSupportingData ? <Text style={styles.supportingHeader}>SUPPORTING DATA</Text> : null}
@@ -93,6 +111,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
     color: palette.mutedInk,
+  },
+  bookList: {
+    gap: 8,
+  },
+  bookRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  bookName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: palette.ink,
+  },
+  bookOdds: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: palette.ink,
   },
   expandedExplanation: {
     fontSize: 14,

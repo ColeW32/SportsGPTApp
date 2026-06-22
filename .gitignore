@@ -45,3 +45,4 @@ GoogleService-Info.plist
 functions/.env*
 functions/lib/
 functions/node_modules/
+.worktrees/

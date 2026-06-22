@@ -136,11 +136,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       isLoading: true,
     });
 
+    // Echo the most recent surfaced pick's betRef so a follow-up like "other
+    // books for this same bet?" can line-shop that exact selection.
+    const referencedBet = [...get().messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.assistantPresentation?.primaryPick?.betRef)
+      ?.assistantPresentation?.primaryPick?.betRef;
+
     try {
       const response = await sendMessages(
         get().messages,
         selectedSportsbooks(get().selectedSportsbookIds),
-        get().suggestedBestBetEvents
+        get().suggestedBestBetEvents,
+        referencedBet
       );
       const assistantMessage: ChatMessage = {
         id: messageId(),

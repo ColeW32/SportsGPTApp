@@ -175,3 +175,38 @@ describe("toAssistantPresentation", () => {
     expect(toAssistantPresentation(data)!.expandedExplanation).toBe("one\ntwo");
   });
 });
+
+describe("line shopping", () => {
+  const lineComparison: MoneyLineAIData = {
+    answer: "Best price is FanDuel at -250; also -300 at Hard Rock Bet.",
+    presentation: {
+      responseType: "line_comparison",
+      headline: "Line Shopping — Pete Crow-Armstrong",
+      summary: "Same bet across books.",
+      primaryPick: {
+        selection: "Over 0.5", market: "batter_hits", outcome: "Over", oddsDisplay: "-250",
+        bookmakerName: "FanDuel", sourceType: "sportsbook",
+        betRef: { eventId: "mlb-ev-1", market: "batter_hits", outcome: "Over", point: 0.5, side: "over", playerId: "p1", playerName: "Pete Crow-Armstrong" },
+      },
+      cards: [
+        { selection: "Over 0.5", market: "batter_hits", outcome: "Over", oddsDisplay: "-250", bookmakerName: "FanDuel", sourceType: "sportsbook" },
+        { selection: "Over 0.5", market: "batter_hits", outcome: "Over", oddsDisplay: "-300", bookmakerName: "Hard Rock Bet", sourceType: "sportsbook" },
+        { selection: "Over 0.5", market: "batter_hits", outcome: "Over", oddsDisplay: "-280", bookmakerName: "DraftKings", sourceType: "sportsbook" },
+      ],
+    },
+    records: [],
+  };
+
+  it("keeps one card per book (does not collapse the same selection) and excludes the primary book", () => {
+    const p = toAssistantPresentation(lineComparison);
+    expect(p?.primaryPick?.bookmakerName).toBe("FanDuel");
+    expect(p?.cards.map((c) => c.bookmakerName)).toEqual(["Hard Rock Bet", "DraftKings"]);
+  });
+
+  it("maps betRef onto the primary pick so the app can echo it back", () => {
+    const p = toAssistantPresentation(lineComparison);
+    expect(p?.primaryPick?.betRef).toEqual({
+      eventId: "mlb-ev-1", market: "batter_hits", outcome: "Over", point: 0.5, side: "over", playerId: "p1", playerName: "Pete Crow-Armstrong",
+    });
+  });
+});

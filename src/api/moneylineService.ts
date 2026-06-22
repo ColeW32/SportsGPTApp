@@ -18,6 +18,7 @@ import {
 import type { Sportsbook } from "./sportsbooks";
 import type {
   BestBetEvent,
+  BetRef,
   ChatMessage,
   MoneyLineAIData,
   MoneyLineChatRequest,
@@ -68,7 +69,8 @@ const FEATURE_PROMPTS: SuggestedPrompt[] = [
 function toWirePayload(
   context: string | undefined,
   selectedBookmakers: Sportsbook[],
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  referencedBet?: BetRef
 ): MoneyLineChatRequest {
   return {
     context,
@@ -76,6 +78,7 @@ function toWirePayload(
     responseFormat: "hybrid",
     filters: selectedBookmakers.length > 0 ? { bookmakers: selectedBookmakers.map((b) => b.apiValue) } : undefined,
     messages: messages.map((m) => ({ role: m.role, content: m.text })),
+    ...(referencedBet ? { referencedBet } : {}),
   };
 }
 
@@ -94,13 +97,14 @@ async function fallbackEventResponse(
 export async function sendMessages(
   messages: ChatMessage[],
   selectedBookmakers: Sportsbook[],
-  bestBetEvents: BestBetEvent[]
+  bestBetEvents: BestBetEvent[],
+  referencedBet?: BetRef
 ): Promise<MoneyLineAIData> {
   const baseMessages = messages.filter((m) => m.includeInAPIRequest).slice(-6);
   const enriched = enrichMessages(baseMessages, bestBetEvents);
   const latestText = enriched[enriched.length - 1]?.text ?? "";
 
-  const primaryResponse = await sendChat(toWirePayload(undefined, selectedBookmakers, enriched));
+  const primaryResponse = await sendChat(toWirePayload(undefined, selectedBookmakers, enriched, referencedBet));
 
   const resolvedEvent = resolveEvent(latestText, bestBetEvents);
 

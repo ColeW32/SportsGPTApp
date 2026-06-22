@@ -17,6 +17,7 @@ import {
 } from "./format";
 import type {
   AssistantPresentation,
+  BetRef,
   Confidence,
   Fact,
   MetricKind,
@@ -74,6 +75,41 @@ export function toAssistantPresentation(data: MoneyLineAIData): AssistantPresent
   const alternativePick = presentation.alternativePick
     ? toRecommendation(presentation.alternativePick, recordAt(recordObjects, presentation.alternativePick.recordIndex), resolvedEvent, false)
     : undefined;
+
+  // Line comparison: every card is the SAME selection at a DIFFERENT book, so the
+  // normal selection-based dedup (and hiding cards that match the primary pick)
+  // would collapse them all to one. Keep one card per book instead.
+  if (presentation.responseType === "line_comparison") {
+    const primaryBook = primaryPick?.bookmakerName;
+    const seenBooks = new Set<string>();
+    const bookCards = (presentation.cards ?? [])
+      .map((card) => toRecommendation(card, recordAt(recordObjects, card.recordIndex), resolvedEvent, false))
+      .filter((card): card is Recommendation => Boolean(card))
+      .filter((card) => {
+        const book = card.bookmakerName;
+        if (!book || book === primaryBook) {
+          return false;
+        }
+        if (seenBooks.has(book)) {
+          return false;
+        }
+        seenBooks.add(book);
+        return true;
+      });
+
+    return {
+      headline: trimmedOrUndefined(presentation.headline),
+      summary: trimmedOrUndefined(presentation.summary),
+      sourceLabel: trimmedOrUndefined(presentation.sourceLabel),
+      confidence: confidenceFrom(presentation.confidence),
+      entityMatchup: resolvedEvent?.matchup,
+      primaryPick,
+      alternativePick: undefined,
+      cards: bookCards,
+      expandedExplanation: expandedExplanation(data),
+      lineComparison: true,
+    };
+  }
 
   const hiddenKeys = new Set(
     [primaryPick, alternativePick].filter((p): p is Recommendation => Boolean(p)).map(displayDedupKey)
@@ -169,8 +205,27 @@ function toRecommendation(
     sourceType: info.sourceType ? trimmedOrUndefined(readableLabel(info.sourceType)) : undefined,
     confidence: confidenceFrom(info.confidence),
     rationale: trimmedOrUndefined(info.rationale ?? info.reason),
+    betRef: toBetRef(info.betRef),
     facts: recommendationFacts(info),
     metricSnapshot: recommendationMetricSnapshot(info),
+  };
+}
+
+function toBetRef(raw: RecommendationInfo["betRef"]): BetRef | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  if (typeof raw.eventId !== "string" || typeof raw.market !== "string") {
+    return undefined;
+  }
+  return {
+    eventId: raw.eventId,
+    market: raw.market,
+    ...(typeof raw.outcome === "string" ? { outcome: raw.outcome } : {}),
+    ...(typeof raw.point === "number" ? { point: raw.point } : {}),
+    ...(typeof raw.side === "string" ? { side: raw.side } : {}),
+    ...(typeof raw.playerId === "string" ? { playerId: raw.playerId } : {}),
+    ...(typeof raw.playerName === "string" ? { playerName: raw.playerName } : {}),
   };
 }
 
