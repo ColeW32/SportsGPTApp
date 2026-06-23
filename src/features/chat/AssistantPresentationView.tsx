@@ -59,15 +59,31 @@ export function AssistantPresentationView({ presentation }: Props) {
       {lineComparisonBooks.length > 0 ? (
         <View style={styles.bookList}>
           <Text style={styles.supportingHeader}>OTHER BOOKS</Text>
-          {lineComparisonBooks.map((book, index) => (
-            <View key={`${book.bookmakerName ?? "book"}-${index}`} style={styles.bookRow}>
-              <Text style={styles.bookName} numberOfLines={1}>
-                {book.bookmakerName}
-                {book.sourceType ? ` · ${book.sourceType}` : ""}
-              </Text>
-              {book.oddsDisplay ? <Text style={styles.bookOdds}>{book.oddsDisplay}</Text> : null}
-            </View>
-          ))}
+          {lineComparisonBooks.map((book, index) => {
+            // Show each book's own line when it differs from the primary pick —
+            // prop/spread comparisons span different lines (Over 2.5 vs Over 3.5),
+            // so a name+odds-only row would make distinct bets look identical.
+            const line =
+              book.selection && book.selection !== presentation.primaryPick?.selection
+                ? book.selection
+                : null;
+            return (
+              <View key={`${book.bookmakerName ?? "book"}-${index}`} style={styles.bookRow}>
+                <View style={styles.bookInfo}>
+                  <Text style={styles.bookName} numberOfLines={1}>
+                    {book.bookmakerName}
+                    {book.sourceType ? ` · ${book.sourceType}` : ""}
+                  </Text>
+                  {line ? (
+                    <Text style={styles.bookLine} numberOfLines={1}>
+                      {line}
+                    </Text>
+                  ) : null}
+                </View>
+                {book.oddsDisplay ? <Text style={styles.bookOdds}>{book.oddsDisplay}</Text> : null}
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
@@ -121,11 +137,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
-  bookName: {
+  bookInfo: {
     flex: 1,
+    gap: 2,
+  },
+  bookName: {
     fontSize: 14,
     fontWeight: "500",
     color: palette.ink,
+  },
+  bookLine: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: palette.mutedInk,
   },
   bookOdds: {
     fontSize: 14,
