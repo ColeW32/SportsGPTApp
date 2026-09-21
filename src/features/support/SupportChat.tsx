@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -46,6 +46,22 @@ export default function SupportChat({ visible, onClose }: SupportChatProps) {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [draft, setDraft] = useState("");
+  // KeyboardAvoidingView under-pads inside an iOS page sheet (it measures from the
+  // sheet, which starts below the status bar) and hid the composer. The sheet's
+  // bottom is the screen's bottom, so padding by the keyboard's height is exact.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) =>
+      setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () =>
+      setKeyboardHeight(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const [isLoading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const listRef = useRef<FlatList<Row>>(null);
@@ -115,10 +131,7 @@ export default function SupportChat({ visible, onClose }: SupportChatProps) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={[styles.container, { paddingBottom: keyboardHeight }]}>
         <View style={styles.topBar}>
           <Text style={styles.title}>Contact Support</Text>
           <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button">
@@ -155,7 +168,7 @@ export default function SupportChat({ visible, onClose }: SupportChatProps) {
           />
         )}
 
-        <View style={styles.composer}>
+        <View style={[styles.composer, keyboardHeight > 0 && styles.composerAboveKeyboard]}>
           <TextInput
             style={styles.input}
             value={draft}
@@ -179,7 +192,7 @@ export default function SupportChat({ visible, onClose }: SupportChatProps) {
             <Text style={styles.sendText}>Send</Text>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -266,6 +279,8 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 15, fontWeight: "500", color: palette.ink, lineHeight: 21 },
   metaText: { fontSize: 11, fontWeight: "500", color: palette.mutedInk },
   failedText: { fontSize: 12, fontWeight: "700", color: "#B3261E" },
+  // The home-indicator gap is only needed when the composer sits at the bottom edge.
+  composerAboveKeyboard: { paddingBottom: 10 },
   composer: {
     flexDirection: "row",
     alignItems: "flex-end",
