@@ -2,6 +2,8 @@
 // for a recommended book, falling back to Rebet. Cached in-memory + AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { JUICED_API_BASE } from "./constants";
+
 export interface SportsbookLink {
   bookmakerId: string;
   brand: string;
@@ -10,7 +12,7 @@ export interface SportsbookLink {
   badge: string;
 }
 
-const ENDPOINT = "https://api.juicedbets.io/v1/promos/sportsbook-links";
+const ENDPOINT = `${JUICED_API_BASE}/promos/sportsbook-links`;
 const CACHE_KEY = "sportsbookLinks.cache.v1";
 const TTL_MS = 60 * 60 * 1000; // 1h
 

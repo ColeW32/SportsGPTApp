@@ -9,3 +9,6 @@ export const PRODUCT_IDS = {
   lifetime: "SportsGPT_PRO_Lifetime",
   monthly: "SportsGPT_PRO_Monthly_999",
 } as const;
+
+// Juiced backend — serves sportsbook links and in-app support chat.
+export const JUICED_API_BASE = "https://api.juicedbets.io/v1";

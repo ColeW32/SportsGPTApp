@@ -32,6 +32,8 @@ import {
   timingValue,
   useSubscriptionStore,
 } from "../../state/subscriptionStore";
+import { fetchConversation } from "../support/api";
+import SupportChat from "../support/SupportChat";
 import { palette } from "../../theme";
 import LegalSheet from "./LegalSheet";
 
@@ -48,6 +50,8 @@ export default function AccountSettingsSheet() {
   const subscriptionErrorMessage = useSubscriptionStore((s) => s.subscriptionErrorMessage);
   const isPaywallPresented = useSubscriptionStore((s) => s.isPaywallPresented);
   const [isLegalVisible, setLegalVisible] = useState(false);
+  const [isSupportVisible, setSupportVisible] = useState(false);
+  const [hasUnreadSupport, setHasUnreadSupport] = useState(false);
 
   // Firebase UID doubles as the RevenueCat App User ID (api/firebase.ts:39,
   // Purchases.logIn(user.uid)), so this single value is what support uses to
@@ -56,6 +60,13 @@ export default function AccountSettingsSheet() {
 
   // Mirrors SubscriptionStore.canManageAds (SportsGPTModels.swift:689-694).
   const canManageAds = state.kind === "activeSubscriber";
+
+  useEffect(() => {
+    if (!isPresented) return;
+    fetchConversation()
+      .then((convo) => setHasUnreadSupport(convo.unread))
+      .catch((e) => console.warn("[support] unread check failed", e));
+  }, [isPresented]);
 
   useEffect(() => {
     if (isPresented && !isPaywallPresented && subscriptionErrorMessage) {
@@ -147,13 +158,35 @@ export default function AccountSettingsSheet() {
           </View>
 
           <View style={styles.card}>
+            <Text style={styles.cardLabel}>SUPPORT</Text>
+
+            <Pressable
+              style={({ pressed }) => [styles.rowButton, pressed && styles.pressed]}
+              onPress={() => setSupportVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel={hasUnreadSupport ? "Contact Support, new reply" : "Contact Support"}
+            >
+              <View style={styles.rowButtonTextBlock}>
+                <View style={styles.rowTitleLine}>
+                  <Text style={styles.rowButtonTitle}>Contact Support</Text>
+                  {hasUnreadSupport ? <View style={styles.unreadDot} /> : null}
+                </View>
+                <Text style={styles.rowButtonDetail}>
+                  {hasUnreadSupport ? "You have a new reply." : "Questions, bugs, or billing — message us."}
+                </Text>
+              </View>
+              <Text style={styles.rowButtonChevron}>›</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>YOUR ACCOUNT ID</Text>
 
             <Text style={styles.accountIdValue} selectable>
               {accountId}
             </Text>
             <Text style={styles.rowButtonDetail}>
-              {"Press and hold the ID to copy it, then share it with support if you ever need help with your account."}
+              {"Press and hold the ID to copy it. Messages you send through Contact Support include it automatically."}
             </Text>
           </View>
 
@@ -197,6 +230,14 @@ export default function AccountSettingsSheet() {
         </ScrollView>
 
         <LegalSheet visible={isLegalVisible} onClose={() => setLegalVisible(false)} />
+        <SupportChat
+          visible={isSupportVisible}
+          onClose={() => {
+            // The chat marks the thread read when it opens.
+            setSupportVisible(false);
+            setHasUnreadSupport(false);
+          }}
+        />
       </View>
     </Modal>
   );
@@ -359,6 +400,17 @@ const styles = StyleSheet.create({
   rowButtonTextBlock: {
     flex: 1,
     gap: 4,
+  },
+  rowTitleLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E5484D",
   },
   rowButtonTitle: {
     fontSize: 15,
