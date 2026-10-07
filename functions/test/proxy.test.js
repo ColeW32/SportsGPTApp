@@ -97,3 +97,30 @@ test("limit rejection propagates before upstream fetch", async () => {
   );
   assert.equal(fetched, false);
 });
+
+test("records the caller as active and still answers", async () => {
+  const seen = [];
+  const result = await handleProxyInvocation({
+    data: { operation: "bestBets" },
+    uid: "u1",
+    apiKey: "k",
+    fetchImpl: async () => ({ ok: true, text: async () => JSON.stringify({ success: true, data: [] }) }),
+    enforceLimit: async () => {},
+    recordActivity: async (uid) => { seen.push(uid); }
+  });
+  assert.deepEqual(seen, ["u1"]);
+  assert.equal(result.success, true);
+});
+
+test("records the caller even when the upstream call fails", async () => {
+  const seen = [];
+  await assert.rejects(handleProxyInvocation({
+    data: { operation: "bestBets" },
+    uid: "u2",
+    apiKey: "k",
+    fetchImpl: async () => ({ ok: false, status: 502, text: async () => "bad gateway" }),
+    enforceLimit: async () => {},
+    recordActivity: async (uid) => { seen.push(uid); }
+  }), /bad gateway/);
+  assert.deepEqual(seen, ["u2"]);
+});

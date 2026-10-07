@@ -56,7 +56,18 @@ function safeParseJSON(value) {
   }
 }
 
-async function handleProxyInvocation({ data, uid, apiKey, fetchImpl, enforceLimit }) {
+async function handleProxyInvocation({ data, uid, apiKey, fetchImpl, enforceLimit, recordActivity = async () => {} }) {
+  // Runs alongside the upstream call and is awaited before returning, so it adds no
+  // latency and is not cut off when the function finishes.
+  const activity = recordActivity(uid);
+  try {
+    return await proxy({ data, uid, apiKey, fetchImpl, enforceLimit });
+  } finally {
+    await activity;
+  }
+}
+
+async function proxy({ data, uid, apiKey, fetchImpl, enforceLimit }) {
   const operation = data?.operation;
 
   if (!ALLOWED_OPERATIONS.has(operation)) {
