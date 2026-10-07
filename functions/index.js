@@ -7,6 +7,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { handleProxyInvocation } = require("./proxy.js");
 const { makeEnforceAiChatLimit } = require("./limits.js");
+const { makeRecordActivity } = require("./activity.js");
 const { processWebhookEvent } = require("./webhook.js");
 
 const moneyLineApiKey = defineSecret("MONEYLINE_API_KEY");
@@ -35,7 +36,8 @@ exports.moneylineProxy = onCall(
       uid: request.auth.uid,
       apiKey: moneyLineApiKey.value(),
       fetchImpl: fetch,
-      enforceLimit: makeEnforceAiChatLimit(getFirestore())
+      enforceLimit: makeEnforceAiChatLimit(getFirestore()),
+      recordActivity: makeRecordActivity(getFirestore())
     });
   }
 );

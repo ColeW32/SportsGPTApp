@@ -21,6 +21,12 @@ Operations (passed as `{ operation, ...params }`):
 - `bestBets` — GET `/v1/best-bets?limit=&bookmaker=`. Not counted.
 - `eventBestBets` — GET `/v1/events/{eventId}/best-bets?bookmaker=`. Not counted.
 
+Every call also marks the user active for the month in Firestore
+`activeUsers/{YYYY-MM}/users/{uid}` (UTC month). Each cold launch loads suggested
+prompts through `bestBets`, so a launch counts. The MoneyLine admin Revenue page
+counts these docs as SportsGPT's monthly active users. A failed write is logged and
+never fails the call.
+
 ### `revenuecatWebhook` (HTTP, us-central1)
 
 Receives RevenueCat webhook events and writes `users/{uid}.isPremium` to Firestore.
