@@ -15,6 +15,12 @@
     "production": {
       "autoIncrement": true,
       "channel": "production"
+    },
+    "sim-check": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {

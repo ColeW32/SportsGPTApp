@@ -115,6 +115,18 @@ export function formatAmericanOdds(value: number): string {
   return intValue > 0 ? `+${intValue}` : `${intValue}`;
 }
 
+/**
+ * A price the three ways books print it, so a Novig "2.92x" or a Kalshi "34%" reads next to a
+ * sportsbook "+192": "+192 · 2.92x · 34.2%". `decimal` is the total return per $1 staked.
+ */
+export function priceFormats(decimal: number): string | undefined {
+  if (!Number.isFinite(decimal) || decimal <= 1) {
+    return undefined;
+  }
+  const american = decimal >= 2 ? (decimal - 1) * 100 : -100 / (decimal - 1);
+  return `${formatAmericanOdds(american)} · ${decimal.toFixed(2)}x · ${(100 / decimal).toFixed(1)}%`;
+}
+
 export function percentText(value: number): string {
   const percent = value >= 1 ? value : value * 100;
   return `${percent.toFixed(2)}%`;

@@ -7,9 +7,15 @@ jest.mock("../../api/moneylineService", () => ({
   fetchSuggestedPromptSeed: jest.fn(),
 }));
 
+jest.mock("../../api/slipCheck", () => ({
+  checkSlip: jest.fn(),
+  slipCheckSummary: () => "Novig pays +192 · 2.92x · 34.2%; fair +230 · 3.30x · 30.3%; EV -11.4%",
+}));
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FreeLimitReachedError, ServerError } from "../../api/errors";
 import { fetchSuggestedPromptSeed, sendMessages } from "../../api/moneylineService";
+import { checkSlip } from "../../api/slipCheck";
 import {
   WELCOME_TEXT,
   canSend,
@@ -115,6 +121,29 @@ describe("sendMessage", () => {
     const [, books, passedEvents] = mockSendMessages.mock.calls[0];
     expect(books.map((b: { id: string }) => b.id)).toEqual(["draftkings", "fanduel"]);
     expect(passedEvents).toBe(events);
+  });
+});
+
+describe("sendSlipCheck", () => {
+  const image = { uri: "file:///slip.jpg", mimeType: "image/jpeg" };
+  const view = { book: "Novig", title: "3-leg parlay", perHundred: true, legs: [], warnings: [] };
+
+  it("posts the picture with the typed question and adds the result card, outside the AI's history", async () => {
+    (checkSlip as jest.Mock).mockResolvedValue(view);
+    useChatStore.setState({ input: "is this fair odds?" });
+    expect(await useChatStore.getState().sendSlipCheck(image)).toBe("sent");
+    const [question, answer] = useChatStore.getState().messages;
+    expect(question).toMatchObject({ role: "user", text: "is this fair odds?", imageUri: image.uri, includeInAPIRequest: false });
+    expect(answer).toMatchObject({ role: "assistant", slipCheck: view, includeInAPIRequest: false });
+    expect(useChatStore.getState().conversations[0].title).toBe("is this fair odds?");
+  });
+
+  it("asks 'Is this fair?' with no typed question and shows the reader's error", async () => {
+    (checkSlip as jest.Mock).mockRejectedValue(new Error("We couldn't read a bet in that picture."));
+    expect(await useChatStore.getState().sendSlipCheck(image)).toBe("error");
+    expect(useChatStore.getState().messages[0].text).toBe("Is this fair?");
+    expect(useChatStore.getState().errorMessage).toBe("We couldn't read a bet in that picture.");
+    expect(useChatStore.getState().isLoading).toBe(false);
   });
 });
 

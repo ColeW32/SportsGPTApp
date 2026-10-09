@@ -3,6 +3,8 @@
 // the minimal markdown renderer. Ads show under API-included assistant replies
 // for non-premium users with chat ads enabled.
 
+import { Image } from "expo-image";
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { ChatMessage } from "../../api/types";
@@ -11,6 +13,7 @@ import { palette } from "../../theme";
 import { AssistantPresentationView } from "./AssistantPresentationView";
 import { MessageMarkdownText } from "./MessageMarkdownText";
 import PromotionCard from "./PromotionCard";
+import { SlipCheckCard } from "./SlipCheckCard";
 
 interface Props {
   message: ChatMessage;
@@ -20,6 +23,8 @@ export function ChatBubble({ message }: Props) {
   const subscriptionState = useSubscriptionStore((s) => s.state);
   const areChatAdsEnabled = useSubscriptionStore((s) => s.areChatAdsEnabled);
 
+  // The picker's copy lives in the cache iOS may clear; an old thread then just drops the thumbnail.
+  const [imageMissing, setImageMissing] = useState(false);
   const isUser = message.role === "user";
   const showAd =
     !isUser && message.includeInAPIRequest && !isPremium(subscriptionState) && areChatAdsEnabled;
@@ -29,7 +34,13 @@ export function ChatBubble({ message }: Props) {
       <Text style={styles.author}>{isUser ? "You" : "SportsGPT"}</Text>
 
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-        {message.assistantPresentation && !isUser ? (
+        {message.imageUri && !imageMissing ? (
+          <Image source={{ uri: message.imageUri }} style={styles.slipImage} contentFit="cover" onError={() => setImageMissing(true)} />
+        ) : null}
+
+        {message.slipCheck && !isUser ? (
+          <SlipCheckCard check={message.slipCheck} />
+        ) : message.assistantPresentation && !isUser ? (
           <AssistantPresentationView presentation={message.assistantPresentation} />
         ) : (
           <MessageMarkdownText text={message.text} />
@@ -66,6 +77,12 @@ const styles = StyleSheet.create({
   bubbleUser: {
     backgroundColor: palette.userBubble,
     borderColor: palette.userBorder,
+  },
+  slipImage: {
+    width: 120,
+    height: 180,
+    borderRadius: 14,
+    backgroundColor: palette.softPanel,
   },
   bubbleAssistant: {
     backgroundColor: palette.card,

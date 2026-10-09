@@ -13,9 +13,11 @@ const RECORDING_RED = "#ED6B54"; // Color(red: 0.93, green: 0.42, blue: 0.33)
 
 interface Props {
   onSend: () => void;
+  /** Opens the slip picker; the parent sends the picked picture for a slip check. */
+  onCheckSlip: () => void;
 }
 
-export function Composer({ onSend }: Props) {
+export function Composer({ onSend, onCheckSlip }: Props) {
   const input = useChatStore((s) => s.input);
   const setInput = useChatStore((s) => s.setInput);
   const isLoading = useChatStore((s) => s.isLoading);
@@ -66,6 +68,17 @@ export function Composer({ onSend }: Props) {
             onSubmitEditing={onSend}
           />
         </View>
+
+        {!isRecording ? (
+          <Pressable
+            style={[styles.circleButton, styles.slipButton]}
+            onPress={onCheckSlip}
+            disabled={isLoading}
+            accessibilityLabel="Check a bet slip"
+          >
+            <SymbolView name="photo" size={17} tintColor={palette.ink} />
+          </Pressable>
+        ) : null}
 
         {isRecording || isInputEmpty ? (
           <Pressable
@@ -156,5 +169,11 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
+  },
+  slipButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: palette.softPanel,
   },
 });

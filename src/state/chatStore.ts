@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { FreeLimitReachedError } from "../api/errors";
 import { fetchSuggestedPromptSeed, sendMessages } from "../api/moneylineService";
 import { formattedAnswer, toAssistantPresentation } from "../api/presentation";
+import { checkSlip, slipCheckSummary, type SlipImage } from "../api/slipCheck";
 import { SPORTSBOOKS, type Sportsbook } from "../api/sportsbooks";
 import type { BestBetEvent, ChatMessage, SuggestedPrompt } from "../api/types";
 
@@ -76,6 +77,8 @@ interface ChatStore {
   setSelectedSportsbookIds: (ids: string[]) => void;
   sendMessage: () => Promise<SendResult>;
   sendSuggestedPrompt: (prompt: SuggestedPrompt) => Promise<SendResult>;
+  /** Check a bet screenshot against fair odds; the input box, if filled, is the question. */
+  sendSlipCheck: (image: SlipImage) => Promise<SendResult>;
   dismissError: () => void;
   hydrate: () => Promise<void>;
   newConversation: () => void;
@@ -143,6 +146,50 @@ export const useChatStore = create<ChatStore>((set, get) => {
     persistConversations(next);
   };
 
+  // Show the user's message, save the thread (the first message turns a draft into a titled
+  // thread), and return the thread this request belongs to: if the user switches threads while
+  // the reply is in flight, it lands there rather than on whatever is active now.
+  const startTurn = (userMessage: ChatMessage) => {
+    const wasDraft = get().activeConversationId === null;
+    set({
+      errorMessage: undefined,
+      input: "",
+      messages: [...get().messages, userMessage],
+      isLoading: true,
+    });
+    if (wasDraft) {
+      const now = Date.now();
+      const conversation: Conversation = {
+        id: newConversationId(),
+        title: conversationTitle(userMessage.text),
+        messages: [...get().messages],
+        createdAt: now,
+        updatedAt: now,
+      };
+      const conversations = recentConversations([conversation, ...get().conversations]).slice(
+        0,
+        MAX_CONVERSATIONS
+      );
+      set({ activeConversationId: conversation.id, conversations });
+      persistConversations(conversations);
+    } else {
+      syncActiveConversation();
+    }
+    const sentConversationId = get().activeConversationId as string;
+    return { wasDraft, sentConversationId, stillActive: () => get().activeConversationId === sentConversationId };
+  };
+
+  // Deliver a reply to the thread it was asked in.
+  const deliver = (sentConversationId: string, stillActive: () => boolean, message: ChatMessage) => {
+    if (stillActive()) {
+      set({ messages: [...get().messages, message], isLoading: false });
+      syncActiveConversation();
+    } else {
+      set({ isLoading: false });
+      appendToConversation(sentConversationId, message);
+    }
+  };
+
   return {
   messages: [],
   input: "",
@@ -203,40 +250,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
       includeInAPIRequest: true,
     };
 
-    const wasDraft = get().activeConversationId === null;
-
-    set({
-      errorMessage: undefined,
-      input: "",
-      messages: [...get().messages, userMessage],
-      isLoading: true,
-    });
-
-    // The first user message turns a draft into a saved, titled thread; later
-    // messages just mirror into the existing conversation.
-    if (wasDraft) {
-      const now = Date.now();
-      const conversation: Conversation = {
-        id: newConversationId(),
-        title: conversationTitle(trimmedInput),
-        messages: [...get().messages],
-        createdAt: now,
-        updatedAt: now,
-      };
-      const conversations = recentConversations([conversation, ...get().conversations]).slice(
-        0,
-        MAX_CONVERSATIONS
-      );
-      set({ activeConversationId: conversation.id, conversations });
-      persistConversations(conversations);
-    } else {
-      syncActiveConversation();
-    }
-
-    // The thread this request belongs to. If the user switches threads while the
-    // reply is in flight, results land here rather than on whatever is active now.
-    const sentConversationId = get().activeConversationId as string;
-    const stillActive = () => get().activeConversationId === sentConversationId;
+    const { wasDraft, sentConversationId, stillActive } = startTurn(userMessage);
 
     // Echo the most recent surfaced pick's betRef so a follow-up like "other
     // books for this same bet?" can line-shop that exact selection.
@@ -259,14 +273,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
         includeInAPIRequest: true,
         assistantPresentation: toAssistantPresentation(response),
       };
-      if (stillActive()) {
-        set({ messages: [...get().messages, assistantMessage], isLoading: false });
-        syncActiveConversation();
-      } else {
-        // User moved to another thread mid-flight — deliver to the origin thread.
-        set({ isLoading: false });
-        appendToConversation(sentConversationId, assistantMessage);
-      }
+      deliver(sentConversationId, stillActive, assistantMessage);
       return "sent";
     } catch (error) {
       if (error instanceof FreeLimitReachedError) {
@@ -309,6 +316,36 @@ export const useChatStore = create<ChatStore>((set, get) => {
   sendSuggestedPrompt: async (prompt) => {
     set({ input: prompt.text });
     return get().sendMessage();
+  },
+
+  sendSlipCheck: async (image) => {
+    if (get().isLoading) {
+      return "noop";
+    }
+    // Slip checks are answered by Juiced's analyzer, not MoneyLine AI, so neither side goes into
+    // the AI's history.
+    const userMessage: ChatMessage = {
+      id: messageId(),
+      role: "user",
+      text: get().input.trim() || "Is this fair?",
+      includeInAPIRequest: false,
+      imageUri: image.uri,
+    };
+    const { sentConversationId, stillActive } = startTurn(userMessage);
+    try {
+      const slipCheck = await checkSlip(image);
+      deliver(sentConversationId, stillActive, {
+        id: messageId(),
+        role: "assistant",
+        text: slipCheckSummary(slipCheck),
+        includeInAPIRequest: false,
+        slipCheck,
+      });
+      return "sent";
+    } catch (error) {
+      set({ isLoading: false, ...(stillActive() && { errorMessage: error instanceof Error ? error.message : "Something went wrong." }) });
+      return "error";
+    }
   },
 
   dismissError: () => set({ errorMessage: undefined }),

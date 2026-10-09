@@ -1,5 +1,7 @@
 // Wire types mirror the MoneyLine API JSON (field names must match the Swift CodingKeys).
 
+import type { SlipCheckView } from "./slipCheck";
+
 export interface MoneyLineChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -187,6 +189,10 @@ export interface ChatMessage {
   text: string;
   includeInAPIRequest: boolean;
   assistantPresentation?: AssistantPresentation;
+  /** A bet screenshot the user attached (local file uri). */
+  imageUri?: string;
+  /** A slip check's result card. */
+  slipCheck?: SlipCheckView;
 }
 
 export interface SuggestedPrompt {

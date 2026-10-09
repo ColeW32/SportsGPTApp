@@ -29,6 +29,7 @@ import AdPreferencesSheet from "../settings/AdPreferencesSheet";
 import LegalSheet from "../settings/LegalSheet";
 import SportsbookFilterSheet from "../settings/SportsbookFilterSheet";
 import { Composer } from "./Composer";
+import { pickSlipImage } from "./slipPicker";
 import ConversationDrawer from "./ConversationDrawer";
 import { MessageList } from "./MessageList";
 import RightSideMenu from "./RightSideMenu";
@@ -63,6 +64,15 @@ export default function ChatScreen() {
 
   const handleSend = () => {
     void guardedSend(() => useChatStore.getState().sendMessage());
+  };
+
+  const handleCheckSlip = async () => {
+    try {
+      const image = await pickSlipImage();
+      if (image) await guardedSend(() => useChatStore.getState().sendSlipCheck(image));
+    } catch (error) {
+      useChatStore.setState({ errorMessage: error instanceof Error ? error.message : "Couldn't open that picture." });
+    }
   };
 
   const handleSelectPrompt = (prompt: SuggestedPrompt) => {
@@ -140,7 +150,7 @@ export default function ChatScreen() {
           </View>
         ) : null}
 
-        <Composer onSend={handleSend} />
+        <Composer onSend={handleSend} onCheckSlip={() => void handleCheckSlip()} />
       </KeyboardAvoidingView>
 
       <PaywallSheet />
