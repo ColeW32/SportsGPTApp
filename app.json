@@ -56,7 +56,7 @@
         {
           "photosPermission": "SportsGPT reads the bet slip screenshot you choose so it can check its odds against fair.",
           "cameraPermission": "SportsGPT uses the camera when you photograph a bet slip to check its odds against fair.",
-          "microphonePermission": false
+          "microphonePermission": "SportsGPT uses the microphone so you can ask questions by voice."
         }
       ],
       [
