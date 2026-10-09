@@ -3,7 +3,7 @@
     "name": "SportsGPT",
     "slug": "sportsgpt",
     "owner": "colewarner-org2",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sportsgpt",
@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "SportsGPT uses the microphone so you can ask questions by voice.",
         "NSSpeechRecognitionUsageDescription": "SportsGPT converts your speech to text to fill in your question.",
-        "NSPhotoLibraryUsageDescription": "SportsGPT only needs photo access if you choose to save or share a betting card image.",
+        "NSPhotoLibraryUsageDescription": "SportsGPT reads the bet slip screenshot you choose so it can check its odds against fair.",
+        "NSCameraUsageDescription": "SportsGPT uses the camera when you photograph a bet slip to check its odds against fair.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -50,6 +51,14 @@
       "@react-native-firebase/app-check",
       "./plugins/withRnfbNonModularHeaders",
       "expo-speech-recognition",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SportsGPT reads the bet slip screenshot you choose so it can check its odds against fair.",
+          "cameraPermission": "SportsGPT uses the camera when you photograph a bet slip to check its odds against fair.",
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-build-properties",
         {

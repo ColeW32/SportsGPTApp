@@ -1,13 +1,12 @@
 // Client for the Juiced support-chat user endpoints (contract: Juiced_Backend
 // docs/superpowers/specs/2026-09-21-support-chat-design.md). Auth is the Firebase
 // ID token, not a Juiced session, so the same thread works for anonymous users.
-import auth from "@react-native-firebase/auth";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 
-import { JUICED_API_BASE } from "../../api/constants";
+import { juicedRequest } from "../../api/juicedClient";
 import { isPremium, useSubscriptionStore } from "../../state/subscriptionStore";
 
 const APP = "sportsgpt";
@@ -41,24 +40,8 @@ export interface ClientContext {
   screen?: string;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const user = auth().currentUser;
-  if (!user) throw new Error("Not signed in yet.");
-  const token = await user.getIdToken();
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(`${JUICED_API_BASE}${path}`, {
-      ...init,
-      headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`Support ${init.method ?? "GET"} ${path} failed: HTTP ${res.status}`);
-    return (await res.json()) as T;
-  } finally {
-    clearTimeout(timer);
-  }
+function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return juicedRequest<T>(path, init, TIMEOUT_MS);
 }
 
 export function fetchConversation(): Promise<SupportConversation> {
