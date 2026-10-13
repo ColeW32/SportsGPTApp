@@ -25,13 +25,19 @@ export interface PaywallFeature {
 export interface PaywallPlan {
   kind: PlanKind;
   title: string;
-  cadence: string;
   badge?: string;
   detail: string;
 }
 
+/**
+ * App Review (guideline 3.1.2(c)) wants the amount billed to be the most prominent price, so
+ * `billed` ("$29.99/year") leads everywhere and the weekly breakdown is only a footnote.
+ */
 export interface PlanPrice {
   price: string;
+  billed: string;
+  /** "Billed $29.99 per year. Renews automatically…" for the fine print. */
+  terms: string;
   footnote?: string;
 }
 
@@ -62,21 +68,18 @@ export const PAYWALL_PLANS: PaywallPlan[] = [
   {
     kind: "yearly",
     title: "Yearly",
-    cadence: "per year",
     badge: "Most Popular",
     detail: "Lowest effective monthly price if SportsGPT becomes part of your regular workflow.",
   },
   {
     kind: "lifetime",
     title: "Lifetime",
-    cadence: "one-time",
     badge: "Pay Once",
     detail: "One purchase, then keep Pro access without a recurring bill.",
   },
   {
     kind: "monthly",
     title: "Monthly",
-    cadence: "per month",
     detail: "Best if you want flexibility or only need Pro month to month.",
   },
 ];
@@ -220,19 +223,23 @@ export function managementNote(state: SubscriptionState): string {
   }
 }
 
-function weeklyFootnote(amount: number, perWeeks: number): string {
-  return `$${(amount / perWeeks).toFixed(2)} Weekly`;
+// In the store's own currency, so it matches the billed amount's priceString.
+function weeklyFootnote(amount: number, perWeeks: number, currencyCode = "USD"): string {
+  const weekly = new Intl.NumberFormat("en-US", { style: "currency", currency: currencyCode }).format(amount / perWeeks);
+  return `About ${weekly} a week`;
 }
+
+const RENEWAL_TERMS = "Renews automatically unless you cancel at least 24 hours before it renews. Manage it in Settings.";
 
 function planPriceFromPackage(kind: PlanKind, pkg: PurchasesPackage): PlanPrice {
   const price = pkg.product.priceString;
   switch (kind) {
     case "yearly":
-      return { price, footnote: weeklyFootnote(pkg.product.price, 52) };
+      return { price, billed: `${price}/year`, terms: `Billed ${price} per year. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price, 52, pkg.product.currencyCode) };
     case "monthly":
-      return { price, footnote: weeklyFootnote(pkg.product.price * 12, 52) };
+      return { price, billed: `${price}/month`, terms: `Billed ${price} per month. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price * 12, 52, pkg.product.currencyCode) };
     case "lifetime":
-      return { price, footnote: "Own Pro Forever" };
+      return { price, billed: `${price} once`, terms: `One payment of ${price}. It never renews.`, footnote: "Own Pro Forever" };
   }
 }
 

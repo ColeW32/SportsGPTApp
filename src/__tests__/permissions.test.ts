@@ -10,7 +10,7 @@ const PURPOSE_STRINGS = [
 ];
 
 test("every permission the app uses keeps its purpose string", () => {
-  const infoPlist = appJson.expo.ios.infoPlist as Record<string, string>;
+  const infoPlist = appJson.expo.ios.infoPlist as unknown as Record<string, string>;
   for (const key of PURPOSE_STRINGS) {
     expect(infoPlist[key]?.length).toBeGreaterThan(10);
   }

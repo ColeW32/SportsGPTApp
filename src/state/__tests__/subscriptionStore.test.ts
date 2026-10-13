@@ -96,9 +96,10 @@ describe("loadOfferings", () => {
     });
     await useSubscriptionStore.getState().loadOfferings();
     const prices = useSubscriptionStore.getState().planPrices;
-    expect(prices.yearly).toEqual({ price: "$29.99", footnote: "$0.58 Weekly" });
-    expect(prices.monthly).toEqual({ price: "$9.99", footnote: "$2.31 Weekly" });
-    expect(prices.lifetime).toEqual({ price: "$49.99", footnote: "Own Pro Forever" });
+    expect(prices.yearly).toMatchObject({ price: "$29.99", billed: "$29.99/year", footnote: "About $0.58 a week" });
+    expect(prices.yearly?.terms).toMatch(/^Billed \$29\.99 per year\. Renews automatically/);
+    expect(prices.monthly).toMatchObject({ price: "$9.99", billed: "$9.99/month", footnote: "About $2.31 a week" });
+    expect(prices.lifetime).toMatchObject({ price: "$49.99", billed: "$49.99 once", terms: "One payment of $49.99. It never renews." });
   });
 
   it("leaves prices empty when offerings fail (never shows stale prices)", async () => {
