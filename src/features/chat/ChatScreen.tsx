@@ -17,6 +17,7 @@ import { SymbolView } from "expo-symbols";
 
 import type { SuggestedPrompt } from "../../api/types";
 import { sportsbookSummary, useChatStore, type SendResult } from "../../state/chatStore";
+import { noteAnsweredQuestion } from "../../state/reviewPrompt";
 import {
   FREE_REQUEST_LIMIT,
   isPremium,
@@ -47,6 +48,7 @@ async function guardedSend(send: () => Promise<SendResult>): Promise<void> {
   const result = await send();
   if (result === "sent") {
     useSubscriptionStore.getState().recordLocalAsk();
+    void noteAnsweredQuestion();
   } else if (result === "limit") {
     useSubscriptionStore.getState().presentPaywall("requestLimitReached");
   }

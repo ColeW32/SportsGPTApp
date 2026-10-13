@@ -119,8 +119,9 @@ function benefitsTitle(state: SubscriptionState): string {
   }
 }
 
-function planWithPrice(plan: PaywallPlan, price: PlanPrice | undefined): string {
-  return price ? `${plan.title} • ${price.price}` : plan.title;
+// The billed amount ("$29.99/year") is what every price spot leads with (App Review 3.1.2(c)).
+function billedOrTitle(plan: PaywallPlan, price: PlanPrice | undefined): string {
+  return price ? price.billed : plan.title;
 }
 
 export default function PaywallSheet() {
@@ -180,7 +181,7 @@ export default function PaywallSheet() {
   const heroTrailingMetric = (): { label: string; value: string } => {
     switch (state.kind) {
       case "neverSubscribed":
-        return { label: "Selected plan", value: planWithPrice(selectedPlan, selectedPrice) };
+        return { label: `${selectedPlan.title} plan`, value: billedOrTitle(selectedPlan, selectedPrice) };
       case "activeTrial":
         return { label: "Plan", value: "Pro trial" };
       case "activeSubscriber":
@@ -191,10 +192,7 @@ export default function PaywallSheet() {
   const finePrint = (): string => {
     switch (state.kind) {
       case "neverSubscribed": {
-        const parts = [`${selectedPlan.title} selected.`];
-        if (selectedPrice?.footnote) {
-          parts.push(selectedPrice.footnote);
-        }
+        const parts = [selectedPrice ? selectedPrice.terms : `${selectedPlan.title} selected.`];
         if (paywallContext === "requestLimitReached") {
           parts.push("Premium removes the free cap right away.");
         }
@@ -217,7 +215,7 @@ export default function PaywallSheet() {
   };
 
   const primaryButtonSupplement =
-    state.kind === "neverSubscribed" ? planWithPrice(selectedPlan, selectedPrice) : undefined;
+    state.kind === "neverSubscribed" ? billedOrTitle(selectedPlan, selectedPrice) : undefined;
 
   const handlePrimaryAction = () => {
     if (state.kind === "neverSubscribed") {
@@ -315,8 +313,7 @@ export default function PaywallSheet() {
                       </View>
 
                       <View style={styles.planPriceBlock}>
-                        {price ? <Text style={styles.planPrice}>{price.price}</Text> : null}
-                        <Text style={styles.planCadence}>{plan.cadence}</Text>
+                        {price ? <Text style={styles.planPrice}>{price.billed}</Text> : null}
                       </View>
                     </Pressable>
                   );
@@ -567,25 +564,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: palette.mutedInk,
   },
+  // The weekly breakdown stays smaller and lighter than the billed amount (App Review 3.1.2(c)).
   planFootnote: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#141412B8", // ink at 0.72
+    fontSize: 12,
+    fontWeight: "400",
+    color: palette.mutedInk,
   },
   planPriceBlock: {
     alignItems: "flex-end",
     gap: 4,
   },
   planPrice: {
-    fontSize: 24,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "700",
     color: palette.ink,
-  },
-  planCadence: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: palette.mutedInk,
-    textAlign: "right",
   },
   benefitsCard: {
     borderRadius: 24,

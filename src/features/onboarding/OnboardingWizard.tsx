@@ -1,7 +1,7 @@
 // Port of OnboardingFlowView + OnboardingQuestionCard (ContentView.swift:3191-3523):
-// five steps — Quick Start, Answer Style, rate prompt, sportsbook selection, apply filters.
+// four steps — Quick Start, Answer Style, sportsbook selection, apply filters. No rating ask here:
+// App Review rejects a rating prompt during onboarding (guideline 5.6.3); see reviewPrompt.ts.
 
-import * as StoreReview from "expo-store-review";
 import { type ReactNode, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import { SPORTSBOOKS } from "../../api/sportsbooks";
 import { useChatStore } from "../../state/chatStore";
 import { palette } from "../../theme";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 const FIRST_QUESTION_OPTIONS = [
   "Tell me the best bet for one game",
@@ -24,14 +24,11 @@ const SECOND_QUESTION_OPTIONS = [
   "The safest angle if I want less risk",
 ];
 
-type ReviewChoice = "rateNow" | "skip";
-
 export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const [firstQuestionChoice, setFirstQuestionChoice] = useState<string>();
   const [secondQuestionChoice, setSecondQuestionChoice] = useState<string>();
-  const [reviewChoice, setReviewChoice] = useState<ReviewChoice>();
   const [selectedSportsbookIds, setSelectedSportsbookIds] = useState<string[]>([]);
 
   const hasSelectedBooks = selectedSportsbookIds.length > 0;
@@ -97,32 +94,6 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
           </QuestionCard>
         );
       case 2:
-        return (
-          <QuestionCard
-            eyebrow="Quick Favor"
-            title="If SportsGPT feels promising, would you rate the app?"
-            detail="Great reviews are what keep us going. This is completely optional, and you can skip it in one tap."
-          >
-            <ChoiceRow
-              title="Rate SportsGPT"
-              isSelected={reviewChoice === "rateNow"}
-              onPress={() => {
-                setReviewChoice("rateNow");
-                void StoreReview.requestReview().catch(() => undefined);
-                advance();
-              }}
-            />
-            <ChoiceRow
-              title="Skip for now"
-              isSelected={reviewChoice === "skip"}
-              onPress={() => {
-                setReviewChoice("skip");
-                advance();
-              }}
-            />
-          </QuestionCard>
-        );
-      case 3:
         return (
           <QuestionCard
             eyebrow="Your Books"
@@ -196,7 +167,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                 <ChoiceRow
                   title="Let me go back and pick books"
                   isSelected={false}
-                  onPress={() => setCurrentStep(3)}
+                  onPress={() => setCurrentStep(2)}
                 />
               </>
             )}
