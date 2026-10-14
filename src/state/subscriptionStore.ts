@@ -235,11 +235,11 @@ function planPriceFromPackage(kind: PlanKind, pkg: PurchasesPackage): PlanPrice 
   const price = pkg.product.priceString;
   switch (kind) {
     case "yearly":
-      return { price, billed: `${price}/year`, terms: `Billed ${price} per year. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price, 52, pkg.product.currencyCode) };
+      return { price, billed: `${price}/year`, terms: `SportsGPT Pro Yearly is a 1-year subscription billed ${price} per year. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price, 52, pkg.product.currencyCode) };
     case "monthly":
-      return { price, billed: `${price}/month`, terms: `Billed ${price} per month. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price * 12, 52, pkg.product.currencyCode) };
+      return { price, billed: `${price}/month`, terms: `SportsGPT Pro Monthly is a 1-month subscription billed ${price} per month. ${RENEWAL_TERMS}`, footnote: weeklyFootnote(pkg.product.price * 12, 52, pkg.product.currencyCode) };
     case "lifetime":
-      return { price, billed: `${price} once`, terms: `One payment of ${price}. It never renews.`, footnote: "Own Pro Forever" };
+      return { price, billed: `${price} once`, terms: `SportsGPT Pro Lifetime is one payment of ${price}. It never renews.`, footnote: "Own Pro Forever" };
   }
 }
 
@@ -255,6 +255,8 @@ interface SubscriptionStore {
   subscriptionErrorMessage?: string;
   managementURL?: string;
   planPrices: Partial<Record<PlanKind, PlanPrice>>;
+  /** Whether the App Store returned prices; the paywall never offers a plan without one. */
+  offeringsStatus: "loading" | "loaded" | "failed";
 
   hydrate: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -285,6 +287,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
   subscriptionErrorMessage: undefined,
   managementURL: undefined,
   planPrices: {},
+  offeringsStatus: "loading",
 
   hydrate: async () => {
     const [ads, count] = await Promise.all([
@@ -307,6 +310,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
   },
 
   loadOfferings: async () => {
+    set({ offeringsStatus: "loading" });
     try {
       const offerings = await Purchases.getOfferings();
       const packages = offerings.current?.availablePackages ?? [];
@@ -317,9 +321,12 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
           planPrices[plan.kind] = planPriceFromPackage(plan.kind, pkg);
         }
       }
-      set({ planPrices });
-    } catch {
-      set({ planPrices: {} });
+      const loaded = Object.keys(planPrices).length > 0;
+      if (!loaded) console.warn("[paywall] the App Store returned no SportsGPT Pro packages");
+      set({ planPrices, offeringsStatus: loaded ? "loaded" : "failed" });
+    } catch (error) {
+      console.warn("[paywall] could not load prices", error);
+      set({ planPrices: {}, offeringsStatus: "failed" });
     }
   },
 

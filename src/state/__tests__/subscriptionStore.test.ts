@@ -97,15 +97,24 @@ describe("loadOfferings", () => {
     await useSubscriptionStore.getState().loadOfferings();
     const prices = useSubscriptionStore.getState().planPrices;
     expect(prices.yearly).toMatchObject({ price: "$29.99", billed: "$29.99/year", footnote: "About $0.58 a week" });
-    expect(prices.yearly?.terms).toMatch(/^Billed \$29\.99 per year\. Renews automatically/);
+    // App Review 3.1.2 wants the title, length and price in the app.
+    expect(prices.yearly?.terms).toMatch(/^SportsGPT Pro Yearly is a 1-year subscription billed \$29\.99 per year\. Renews automatically/);
+    expect(useSubscriptionStore.getState().offeringsStatus).toBe("loaded");
     expect(prices.monthly).toMatchObject({ price: "$9.99", billed: "$9.99/month", footnote: "About $2.31 a week" });
-    expect(prices.lifetime).toMatchObject({ price: "$49.99", billed: "$49.99 once", terms: "One payment of $49.99. It never renews." });
+    expect(prices.lifetime).toMatchObject({ price: "$49.99", billed: "$49.99 once", terms: "SportsGPT Pro Lifetime is one payment of $49.99. It never renews." });
   });
 
   it("leaves prices empty when offerings fail (never shows stale prices)", async () => {
     mockGetOfferings.mockRejectedValue(new Error("offline"));
     await useSubscriptionStore.getState().loadOfferings();
     expect(useSubscriptionStore.getState().planPrices).toEqual({});
+    expect(useSubscriptionStore.getState().offeringsStatus).toBe("failed");
+  });
+
+  it("marks prices failed when the App Store returns no packages, so no plan shows without a price", async () => {
+    mockGetOfferings.mockResolvedValue({ current: { availablePackages: [] } });
+    await useSubscriptionStore.getState().loadOfferings();
+    expect(useSubscriptionStore.getState().offeringsStatus).toBe("failed");
   });
 });
 
