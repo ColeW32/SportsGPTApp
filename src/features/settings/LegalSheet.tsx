@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL, TERMS_OF_USE_URL } from "../../api/constants";
 import { palette } from "../../theme";
 
 interface LegalSheetProps {
@@ -46,7 +47,7 @@ export default function LegalSheet({ visible, onClose }: LegalSheetProps) {
               {"Odds, expected value, best bets, arbitrage information, and other betting data may change quickly and may contain delays, errors, or omissions. SportsGPT, MoneyLine, and their providers are not responsible for losses, missed opportunities, or decisions you make based on app content."}
             </LegalParagraph>
             <LegalParagraph>
-              {"Subscriptions, trials, renewals, billing, and entitlements will be managed through RevenueCat and the applicable app-store payment platform once those services are fully connected. Premium features may change over time."}
+              {"SportsGPT Pro subscriptions are billed through your Apple ID and renew automatically unless you cancel at least 24 hours before the current period ends. Manage or cancel them in Settings under your Apple ID, Subscriptions. Premium features may change over time."}
             </LegalParagraph>
           </LegalCard>
 
@@ -61,6 +62,9 @@ export default function LegalSheet({ visible, onClose }: LegalSheetProps) {
               {"Information may be shared with these providers only as needed to deliver their services, including request contents, subscription state, purchase information, and technical identifiers required for platform functionality. You should also review each provider’s own terms and privacy materials."}
             </LegalParagraph>
             <View style={styles.linksBlock}>
+              <LegalLink title="SportsGPT Terms of Service" url={TERMS_OF_SERVICE_URL} />
+              <LegalLink title="SportsGPT Privacy Policy" url={PRIVACY_POLICY_URL} />
+              <LegalLink title="Terms of Use (Apple EULA)" url={TERMS_OF_USE_URL} />
               <LegalLink title="MoneyLine Terms" url="https://www.moneylineapp.com/terms" />
               <LegalLink title="MoneyLine Privacy" url="https://www.moneylineapp.com/privacy" />
               <LegalLink

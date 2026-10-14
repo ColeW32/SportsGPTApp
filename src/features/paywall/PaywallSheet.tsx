@@ -2,12 +2,13 @@
 // (ContentView.swift:105-107). Context-aware copy (Swift 786-829), plan rows (974-1068),
 // and the bottom bar with the purchase CTA plus the "Not now" dismiss that only appears
 // after a 5 second delay (Swift 735-740, 1212-1240). Prices come exclusively from
-// planPrices (live RevenueCat offerings) — plans without an entry render with no price.
+// planPrices (live RevenueCat offerings) — plans without an entry are hidden.
 
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -26,12 +27,10 @@ import {
   timingValue,
   useSubscriptionStore,
   type PaywallContext,
-  type PaywallPlan,
   type PlanKind,
-  type PlanPrice,
   type SubscriptionState,
 } from "../../state/subscriptionStore";
-import LegalSheet from "../settings/LegalSheet";
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from "../../api/constants";
 import { palette } from "../../theme";
 
 // Text stand-ins for the SF Symbols used by the Swift paywall feature list
@@ -119,17 +118,13 @@ function benefitsTitle(state: SubscriptionState): string {
   }
 }
 
-// The billed amount ("$29.99/year") is what every price spot leads with (App Review 3.1.2(c)).
-function billedOrTitle(plan: PaywallPlan, price: PlanPrice | undefined): string {
-  return price ? price.billed : plan.title;
-}
-
 export default function PaywallSheet() {
   const insets = useSafeAreaInsets();
   const isPaywallPresented = useSubscriptionStore((s) => s.isPaywallPresented);
   const paywallContext = useSubscriptionStore((s) => s.paywallContext);
   const state = useSubscriptionStore((s) => s.state);
   const planPrices = useSubscriptionStore((s) => s.planPrices);
+  const offeringsStatus = useSubscriptionStore((s) => s.offeringsStatus);
   const freeRequestCount = useSubscriptionStore((s) => s.freeRequestCount);
   const isOperationInProgress = useSubscriptionStore((s) => s.isSubscriptionOperationInProgress);
   const subscriptionErrorMessage = useSubscriptionStore((s) => s.subscriptionErrorMessage);
@@ -137,11 +132,15 @@ export default function PaywallSheet() {
 
   const [selectedKind, setSelectedKind] = useState<PlanKind>("yearly");
   const [isDismissVisible, setDismissVisible] = useState(false);
-  const [legalVisible, setLegalVisible] = useState(false);
 
-  const selectedPlan = PAYWALL_PLANS.find((plan) => plan.kind === selectedKind) ?? PAYWALL_PLANS[0];
+  // App Review (3.1.2): a plan is only shown with its price, and every price spot leads with
+  // the billed amount ("$29.99/year"). With no prices at all the button reloads them.
+  const pricedPlans = PAYWALL_PLANS.filter((plan) => planPrices[plan.kind]);
+  const selectedPlan =
+    pricedPlans.find((plan) => plan.kind === selectedKind) ?? pricedPlans[0] ?? PAYWALL_PLANS[0];
   const selectedPrice = planPrices[selectedPlan.kind];
   const shouldShowPlans = state.kind === "neverSubscribed";
+  const priceMissing = shouldShowPlans && !selectedPrice;
 
   useEffect(() => {
     if (!isPaywallPresented) {
@@ -149,7 +148,6 @@ export default function PaywallSheet() {
     }
     setSelectedKind("yearly");
     setDismissVisible(false);
-    setLegalVisible(false);
     void useSubscriptionStore.getState().refresh();
     void useSubscriptionStore.getState().loadOfferings();
     const timer = setTimeout(() => setDismissVisible(true), 5000);
@@ -181,7 +179,9 @@ export default function PaywallSheet() {
   const heroTrailingMetric = (): { label: string; value: string } => {
     switch (state.kind) {
       case "neverSubscribed":
-        return { label: `${selectedPlan.title} plan`, value: billedOrTitle(selectedPlan, selectedPrice) };
+        return selectedPrice
+          ? { label: `${selectedPlan.title} plan`, value: selectedPrice.billed }
+          : { label: "Pro plans", value: offeringsStatus === "loading" ? "Loading prices" : "Prices unavailable" };
       case "activeTrial":
         return { label: "Plan", value: "Pro trial" };
       case "activeSubscriber":
@@ -192,7 +192,7 @@ export default function PaywallSheet() {
   const finePrint = (): string => {
     switch (state.kind) {
       case "neverSubscribed": {
-        const parts = [selectedPrice ? selectedPrice.terms : `${selectedPlan.title} selected.`];
+        const parts = selectedPrice ? [selectedPrice.terms] : [];
         if (paywallContext === "requestLimitReached") {
           parts.push("Premium removes the free cap right away.");
         }
@@ -206,6 +206,9 @@ export default function PaywallSheet() {
   };
 
   const primaryButtonTitle = (): string => {
+    if (priceMissing) {
+      return offeringsStatus === "loading" ? "Loading prices..." : "Load Prices";
+    }
     if (state.kind === "neverSubscribed") {
       return paywallContext === "requestLimitReached"
         ? `Unlock With ${selectedPlan.title}`
@@ -214,13 +217,14 @@ export default function PaywallSheet() {
     return "Open Account Settings";
   };
 
-  const primaryButtonSupplement =
-    state.kind === "neverSubscribed" ? billedOrTitle(selectedPlan, selectedPrice) : undefined;
+  const primaryButtonSupplement = state.kind === "neverSubscribed" ? selectedPrice?.billed : undefined;
 
   const handlePrimaryAction = () => {
-    if (state.kind === "neverSubscribed") {
+    if (priceMissing) {
+      void useSubscriptionStore.getState().loadOfferings();
+    } else if (state.kind === "neverSubscribed") {
       // The store dismisses the paywall itself once the entitlement is active.
-      void useSubscriptionStore.getState().purchase(selectedKind);
+      void useSubscriptionStore.getState().purchase(selectedPlan.kind);
     } else {
       dismissPaywall();
       setTimeout(() => useSubscriptionStore.getState().presentAccountSettings(), 250);
@@ -279,10 +283,17 @@ export default function PaywallSheet() {
                 {"All premium plans remove the 10-question cap and keep the chat ad-free."}
               </Text>
 
+              {priceMissing && offeringsStatus === "failed" ? (
+                <Text style={styles.priceNotice}>
+                  {"Prices couldn't load from the App Store. Tap Load Prices to try again."}
+                </Text>
+              ) : null}
+
               <View style={styles.planList}>
-                {PAYWALL_PLANS.map((plan) => {
-                  const isSelected = plan.kind === selectedKind;
+                {pricedPlans.map((plan) => {
+                  const isSelected = plan.kind === selectedPlan.kind;
                   const price = planPrices[plan.kind];
+                  if (!price) return null;
                   return (
                     <Pressable
                       key={plan.kind}
@@ -307,13 +318,13 @@ export default function PaywallSheet() {
 
                         <Text style={styles.planDetail}>{plan.detail}</Text>
 
-                        {price?.footnote ? (
+                        {price.footnote ? (
                           <Text style={styles.planFootnote}>{price.footnote}</Text>
                         ) : null}
                       </View>
 
                       <View style={styles.planPriceBlock}>
-                        {price ? <Text style={styles.planPrice}>{price.billed}</Text> : null}
+                        <Text style={styles.planPrice}>{price.billed}</Text>
                       </View>
                     </Pressable>
                   );
@@ -347,14 +358,14 @@ export default function PaywallSheet() {
             </View>
           </View>
 
-          <Text style={styles.finePrint}>{finePrint()}</Text>
+          {finePrint() ? <Text style={styles.finePrint}>{finePrint()}</Text> : null}
 
           <View style={styles.linksRow}>
-            <Pressable onPress={() => setLegalVisible(true)} disabled={isOperationInProgress}>
-              <Text style={styles.linkText}>Terms</Text>
+            <Pressable onPress={() => void Linking.openURL(TERMS_OF_USE_URL)} accessibilityRole="link">
+              <Text style={styles.linkText}>Terms of Use</Text>
             </Pressable>
-            <Pressable onPress={() => setLegalVisible(true)} disabled={isOperationInProgress}>
-              <Text style={styles.linkText}>Privacy</Text>
+            <Pressable onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)} accessibilityRole="link">
+              <Text style={styles.linkText}>Privacy Policy</Text>
             </Pressable>
             <Pressable
               onPress={() => void useSubscriptionStore.getState().restorePurchases()}
@@ -369,7 +380,7 @@ export default function PaywallSheet() {
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
             onPress={handlePrimaryAction}
-            disabled={isOperationInProgress}
+            disabled={isOperationInProgress || (priceMissing && offeringsStatus === "loading")}
             accessibilityRole="button"
           >
             {isOperationInProgress ? (
@@ -400,8 +411,6 @@ export default function PaywallSheet() {
             <Text style={styles.dismissText}>Not now</Text>
           </Pressable>
         </View>
-
-        <LegalSheet visible={legalVisible} onClose={() => setLegalVisible(false)} />
       </View>
     </Modal>
   );
@@ -633,6 +642,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 18,
+  },
+  priceNotice: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: palette.ink,
   },
   linkText: {
     fontSize: 13,
